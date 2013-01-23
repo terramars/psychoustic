@@ -5,14 +5,35 @@ def draw_points(xs,ys,colors,im):
     for i in range(len(xs)):
         im[xs[i],ys[i],:]+=np.array(colors[i])
 
+def interpolate_segment(im,x1,y1,x2,y2,color1,color2,n=8,min_dist=8):
+    dx=x2-x1
+    dy=y2-y1
+    diff=np.sqrt((dx*dx+dy*dy))
+    if diff/n<=min_dist:
+        im[x1,y1,:]=color1
+        im[x2,y2,:]=color2
+        return
+    curx=x1
+    cury=y1
+    dx/=1.0*n
+    dy/=1.0*n
+    n*=1.0
+    for i in range(int(n+1)):
+        color=color1*(1-i/n)+color2*(i/n)
+        im[int(x1+i*dx),int(y1+i*dy),:]=color
+
+def draw_points_interp(xs,ys,colors,im):
+    for i in range(1,len(xs)):
+        interpolate_segment(im,xs[i-1],ys[i-1],xs[i],ys[i],np.array(colors[i-1]),np.array(colors[i]))
+
 def draw_points_draw(xs,ys,colors,draw):
     for i in range(1,len(xs)):
         draw.line(((xs[i-1],ys[i-1]),(xs[i],ys[i])),fill=tuple(colors[i-1]))
 
-def rad_and_data_to_value(colors,rad,data):
+def rad_and_data_to_value(colors,rad,data,outerval=16.0,drawdown=8.0):
     index=int(rad%(2*pi)/2/pi*255)
     color=colors[index]
-    color=(color*(data)+128*np.ones(3)*(1-data))
+    color=(color*(data)+outerval*np.ones(3)*(1-data))/((1-data)*(1-data)*drawdown+1)
     return color
 
 def get_colors(colors,colorads,colordata):
@@ -23,7 +44,7 @@ def draw_spectrum(psd,spectrum,shape,name,sym=2,inv=1):
     colors=[np.array(cm.hsv(i)[:3])*255 for i in range(256)]
     data=normalize_spectrum(spectrum,inv=inv)
     colordata=data.copy()
-    colordata=(1.0-colordata)**(1/4.0)
+    colordata=(1.0-colordata)**(1/3.0)
     colordata-=colordata.min()
     colordata/=colordata.max()
     #colordata*=255
@@ -38,14 +59,15 @@ def draw_spectrum(psd,spectrum,shape,name,sym=2,inv=1):
     colors=get_colors(colors,colorads,colordata)
     #print colordata.max(),colordata.min(),name
     for i in range(sym):
-        draw_points(xs[i*nsemi:(i+1)*nsemi],ys[i*nsemi:(i+1)*nsemi],colors,im)
-    #imsave(name,im.astype(np.uint8))
+        draw_points_interp(xs[i*nsemi:(i+1)*nsemi],ys[i*nsemi:(i+1)*nsemi],colors,im)
+    imsave(name,im.astype(np.uint8))
     #im.save(name)
     return im#.astype(np.float32)
 
 def convolve_image(im1,im2,name,rot=0,filt=1):
     im=np.zeros((im1.shape[0]*2-1,im1.shape[0]*2-1,3))
     tmp1s=[]
+    #print name
     tmp2s=[]
     for channel in range(3):
         im1tmp=im1[:,:,channel]
@@ -63,7 +85,7 @@ def convolve_image(im1,im2,name,rot=0,filt=1):
             im[:,:,channel2]+=imtmp
     im=np.choose(im>0,(0,im))
     im+=1.0000001
-    im=np.log(im)**3
+    im=np.log(im)**2
     im*=255.0/(im.max())
     imsave(name,im.astype(np.uint8)[:-1,:-1])
     return im
@@ -89,8 +111,8 @@ def file_to_images(fin,outdir,filetype='png',shape=(640,640),framerate=25,sym=2,
         if os.path.isfile('%sconv%04d.%s'%(outdir,i,filetype)):
             continue
         psd=get_spectrum(signal,i,fs,NFFT)
-        psd[:,0]=np.convolve(psd[:,0],gauss,'same')
-        psd[:,1]=np.convolve(psd[:,1],gauss,'same')
+        #psd[:,0]=np.convolve(psd[:,0],gauss,'same')
+        #psd[:,1]=np.convolve(psd[:,1],gauss,'same')
         spectrum=10*np.log10(psd+1e-20)
         if signal.shape[1]==2:
             #spectrum = 10*np.log10(np.convolve(s[0].psd,gauss,'valid'))
