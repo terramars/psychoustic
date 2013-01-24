@@ -69,9 +69,13 @@ def get_radians_with_spectrum(psd,final_angle=pi):
     rads*=final_angle
     return rads
 
-def normalize_spectrum(spectrum,offset=20,inv=1,scales=(24.0,8.0)):
-    spectrum_plus=np.choose(spectrum>-1*offset,(0,spectrum+offset))
-    spectrum_minus=np.choose(spectrum<-1*offset,(0,spectrum+offset))
+def normalize_spectrum(spectrum,power,offset=-25,inv=1,scales=(24.0,8.0)):
+    alt_offset=10*np.log10(power)-10
+    if alt_offset>offset:
+        offset=alt_offset
+    #print power,alt_offset
+    spectrum_plus=np.choose(spectrum>offset,(0,spectrum-offset))
+    spectrum_minus=np.choose(spectrum<offset,(0,spectrum-offset))
     data=np.ones(spectrum.shape)+8
     if inv:
         data-=scales[0]*(1-1/np.log10(spectrum_plus+10))
@@ -91,8 +95,8 @@ def data_to_circle(data,psd,sym=2):
     #    data=data[:-1*(n%3)]
     #    psd=psd[:-1*(n%3)]
     #    n-=n%3
-    rads=get_radians_with_spectrum(psd,final_angle)
-    #rads=get_radians(n,final_angle)
+    #rads=get_radians_with_spectrum(psd,final_angle)
+    rads=get_radians(n,final_angle)
     offset=0
     direction=0
     #rad_low=get_radians(n/3,final_angle/2)
@@ -122,7 +126,7 @@ def data_to_circle(data,psd,sym=2):
     return finalx, finaly
 
 def draw_spectrum(psd,spectrum,shape,name,sym=2,inv=1):
-    data=normalize_spectrum(spectrum,inv=inv)
+    data=normalize_spectrum(spectrum,psd,inv=inv)
     xs,ys=data_to_circle(data,psd,sym=sym)
     xs,ys=center_circle(xs,ys,shape)
     im=Image.new('L',shape)
@@ -158,15 +162,16 @@ def get_audio(fin):
     return signal,fs
 
 def get_spectrum(signal,i,fs,NFFT):
-    psd = np.zeros((NFFT/2,signal.shape[1]))
-    s = FourierSpectrum(signal[i*NFFT/2:i*NFFT/2+NFFT,0],sampling=fs,NFFT=NFFT,detrend='mean')
+    mult=2
+    psd = np.zeros((NFFT*mult/2,signal.shape[1]))
+    s = FourierSpectrum(signal[i*NFFT/2:i*NFFT/2+NFFT,0],sampling=fs,NFFT=NFFT*mult,detrend='mean')
     s.periodogram()
-    psd[:,0]=s.psd[1:]
+    psd[:,0]=s.psd[1:psd.shape[0]+1]
     if signal.shape[1]>1: 
-        s = FourierSpectrum(signal[i*NFFT/2:i*NFFT/2+NFFT,1],sampling=fs,NFFT=NFFT,detrend='mean')
+        s = FourierSpectrum(signal[i*NFFT/2:i*NFFT/2+NFFT,1],sampling=fs,NFFT=NFFT*mult,detrend='mean')
         s.periodogram()
-        psd[:,1]=s.psd[1:]
-    return psd
+        psd[:,1]=s.psd[1:psd.shape[0]+1]
+    return psd,s.power()
     #if signal.shape[1]==2:
     #    return (FourierSpectrum(signal[i*NFFT/2:i*NFFT/2+NFFT,0],sampling=fs,NFFT=NFFT,detrend='mean'),FourierSpectrum(signal[i*NFFT/2:i*NFFT/2+NFFT,1],sampling=fs,NFFT=NFFT,detrend='mean'))
     #else:
@@ -177,7 +182,7 @@ def get_spectrum_slices(signal,fs,framerate):
     NFFT=int(fs/framerate)
     signal=signal[:(signal.shape[0]*2/NFFT)*NFFT/2,:]
     for i in range(signal.shape[0]/NFFT*2):
-        ffts.append(get_spectrum(signal,i,fs,NFFT))
+        ffts.append(get_spectrum(signal,i,fs,NFFT)[0])
     return ffts
 
 def file_to_images(fin,outdir,filetype='png',shape=(640,640),framerate=25,sym=2,rot=0,inv=1):
@@ -200,7 +205,7 @@ def file_to_images(fin,outdir,filetype='png',shape=(640,640),framerate=25,sym=2,
     for i in range(signal.shape[0]/NFFT*2):
         if os.path.isfile('%sconv%04d.%s'%(outdir,i,filetype)):
             continue
-        psd=get_spectrum(signal,i,fs,NFFT)
+        psd=get_spectrum(signal,i,fs,NFFT)[0]
         psd[:,0]=np.convolve(psd[:,0],gauss,'same')
         psd[:,1]=np.convolve(psd[:,1],gauss,'same')
         spectrum=10*np.log10(psd+1e-20)

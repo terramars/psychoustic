@@ -30,7 +30,7 @@ def draw_points_draw(xs,ys,colors,draw):
     for i in range(1,len(xs)):
         draw.line(((xs[i-1],ys[i-1]),(xs[i],ys[i])),fill=tuple(colors[i-1]))
 
-def rad_and_data_to_value(colors,rad,data,outerval=16.0,drawdown=8.0):
+def rad_and_data_to_value(colors,rad,data,outerval=6.0,drawdown=0.0):
     index=int(rad%(2*pi)/2/pi*255)
     color=colors[index]
     color=(color*(data)+outerval*np.ones(3)*(1-data))/((1-data)*(1-data)*drawdown+1)
@@ -39,12 +39,13 @@ def rad_and_data_to_value(colors,rad,data,outerval=16.0,drawdown=8.0):
 def get_colors(colors,colorads,colordata):
     return [rad_and_data_to_value(colors,colorads[i],colordata[i]) for i in range(len(colorads))]
 
-def draw_spectrum(psd,spectrum,shape,name,sym=2,inv=1):
+def draw_spectrum(power,psd,spectrum,shape,name,sym=2,inv=1):
     #colors=[np.array(cm.jet(i)[:3])*255 for i in range(256)]
     colors=[np.array(cm.hsv(i)[:3])*255 for i in range(256)]
-    data=normalize_spectrum(spectrum,inv=inv)
+    data=normalize_spectrum(spectrum,psd.max(),inv=inv)
     colordata=data.copy()
     colordata=(1.0-colordata)**(1/3.0)
+    colordata=np.choose(spectrum<-20,(colordata,colordata/10))
     colordata-=colordata.min()
     colordata/=colordata.max()
     #colordata*=255
@@ -60,7 +61,7 @@ def draw_spectrum(psd,spectrum,shape,name,sym=2,inv=1):
     #print colordata.max(),colordata.min(),name
     for i in range(sym):
         draw_points_interp(xs[i*nsemi:(i+1)*nsemi],ys[i*nsemi:(i+1)*nsemi],colors,im)
-    imsave(name,im.astype(np.uint8))
+    #imsave(name,im.astype(np.uint8))
     #im.save(name)
     return im#.astype(np.float32)
 
@@ -79,13 +80,13 @@ def convolve_image(im1,im2,name,rot=0,filt=1):
     for channel in range(3):
         im1tmp=tmp1s[channel]
         for channel2 in range(channel,3):
-            im2tmp=tmp2s[channel]
+            im2tmp=tmp2s[channel2]
             imtmp=fftconvolve(im1tmp,im2tmp)
             im[:,:,channel]+=imtmp
             im[:,:,channel2]+=imtmp
     im=np.choose(im>0,(0,im))
     im+=1.0000001
-    im=np.log(im)**2
+    im=np.log(im)
     im*=255.0/(im.max())
     imsave(name,im.astype(np.uint8)[:-1,:-1])
     return im
@@ -108,25 +109,25 @@ def file_to_images(fin,outdir,filetype='png',shape=(640,640),framerate=25,sym=2,
     t2=0
     t3=time.time()
     for i in range(signal.shape[0]/NFFT*2):
-        if os.path.isfile('%sconv%04d.%s'%(outdir,i,filetype)):
+        if os.path.isfile('%sconv%05d.%s'%(outdir,i,filetype)):
             continue
-        psd=get_spectrum(signal,i,fs,NFFT)
+        psd,power=get_spectrum(signal,i,fs,NFFT)
         #psd[:,0]=np.convolve(psd[:,0],gauss,'same')
         #psd[:,1]=np.convolve(psd[:,1],gauss,'same')
         spectrum=10*np.log10(psd+1e-20)
         if signal.shape[1]==2:
             #spectrum = 10*np.log10(np.convolve(s[0].psd,gauss,'valid'))
-            im1=draw_spectrum(psd[:,0],spectrum[:,0],shape,name='%s%04d_1.%s'%(outdir,i,filetype),sym=sym,inv=inv)
-            im2=draw_spectrum(psd[:,1],spectrum[:,1],shape,name='%s%04d_2.%s'%(outdir,i,filetype),sym=sym,inv=inv)
+            im1=draw_spectrum(power,psd[:,0],spectrum[:,0],shape,name='%s%05d_1.%s'%(outdir,i,filetype),sym=sym,inv=inv)
+            im2=draw_spectrum(power,psd[:,1],spectrum[:,1],shape,name='%s%05d_2.%s'%(outdir,i,filetype),sym=sym,inv=inv)
             t1+=time.time()-t3
             t3=time.time()
-            convolve_image(im1,im2,name='%sconv%04d.%s'%(outdir,i,filetype),rot=rot)
+            convolve_image(im1,im2,name='%sconv%05d.%s'%(outdir,i,filetype),rot=rot)
             t2+=time.time()-t3
             t3=time.time()
         else:
             #spectrum = 10*np.log10(np.convolve(s.psd,gauss,'valid'))
-            im=draw_spectrum(spectrum,shape,name='%s%04d_1.%s'%(outdir,i,filetype),sym=sym,inv=inv)
-            convolve_image(im,im,name='%sconv%04d.%s'%(outdir,i,filetype),rot=rot)
+            im=draw_spectrum(spectrum,shape,name='%s%05d_1.%s'%(outdir,i,filetype),sym=sym,inv=inv)
+            convolve_image(im,im,name='%sconv%05d.%s'%(outdir,i,filetype),rot=rot)
         if i%100==0:
             print i,time.time()-t0,t1,t2
     return
