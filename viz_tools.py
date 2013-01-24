@@ -7,7 +7,7 @@ import shutil
 import os
 from scipy.misc import imsave
 from scipy.signal import fftconvolve, resample, convolve2d, gaussian
-from scipy.fftpack import fftn,ifftn
+from scipy.fftpack import fftn,ifftn,fftshift
 from helper import *
 
 def draw_points(xs,ys,colors,draw):
@@ -69,8 +69,8 @@ def get_radians_with_spectrum(psd,final_angle=pi):
     rads*=final_angle
     return rads
 
-def normalize_spectrum(spectrum,power,offset=-25,inv=1,scales=(24.0,8.0)):
-    alt_offset=10*np.log10(power)-10
+def normalize_spectrum(spectrum,power,offset=-20,inv=1,scales=(24.0,8.0)):
+    alt_offset=10*np.log10(power)-15
     if alt_offset>offset:
         offset=alt_offset
     #print power,alt_offset
@@ -161,13 +161,13 @@ def get_audio(fin):
     signal,fs,enc=audiolab.wavread(fin)
     return signal,fs
 
-def get_spectrum(signal,i,fs,NFFT):
+def get_spectrum(signal,i,fs,NFFT,channel=1):
     mult=2
-    psd = np.zeros((NFFT*mult/2,signal.shape[1]))
+    psd = np.zeros((NFFT*mult/2,channel))
     s = FourierSpectrum(signal[i*NFFT/2:i*NFFT/2+NFFT,0],sampling=fs,NFFT=NFFT*mult,detrend='mean')
     s.periodogram()
     psd[:,0]=s.psd[1:psd.shape[0]+1]
-    if signal.shape[1]>1: 
+    if channel>1: 
         s = FourierSpectrum(signal[i*NFFT/2:i*NFFT/2+NFFT,1],sampling=fs,NFFT=NFFT*mult,detrend='mean')
         s.periodogram()
         psd[:,1]=s.psd[1:psd.shape[0]+1]
