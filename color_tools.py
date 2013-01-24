@@ -44,11 +44,15 @@ def get_colors(colors,colorads,colordata,outerval=4.0):
 def draw_spectrum(power,psd,spectrum,shape,name,sym=2,inv=1):
     #colors=[np.array(cm.jet(i)[:3])*255 for i in range(256)]
     t0=time.time()
+    psdmax=psd.max()
     data=normalize_spectrum(spectrum,psd.max(),inv=inv)
     colors=[np.array(cm.hsv(i)[:3])*255 for i in range(256)]
     colordata=data.copy()
     colordata=(1.0-colordata)**(1/3.0)
-    colordata=np.choose(spectrum<-20,(colordata,colordata/10))
+    if np.log10(psdmax)>-2:
+        colordata=np.choose(spectrum<-30,(colordata,colordata/10))
+    else:
+        colordata=np.choose(spectrum<psdmax-10,(colordata,colordata/10))
     colordata-=colordata.min()
     colordata/=colordata.max()
     t0=time.time()-t0

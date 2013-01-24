@@ -20,8 +20,11 @@ for fin in files:
     clean_outdir=clean_base+'_pics/'
     wav=base+'.wav'
     clean_wav=clean_base+'.wav'
-    fout=base+'.avi'
+    fout=base+'_color.avi'
     clean_fout=clean_base+'_color.avi'
+    if os.path.isfile(fout):
+        print 'already have ',fout,'skipping'
+        continue
     framerate=25
 
     p=os.popen('ffmpeg -y -i %s %s'%(clean_fin,clean_wav))
