@@ -45,6 +45,9 @@ def draw_spectrum(power,psd,spectrum,shape,name,sym=2,inv=1):
     #colors=[np.array(cm.jet(i)[:3])*255 for i in range(256)]
     t0=time.time()
     psdmax=psd.max()
+    if psdmax <= 0.0:
+        im=Image.new('RGB',shape)
+        return im,(0,0,0,0,0)
     data=normalize_spectrum(spectrum,psd.max(),inv=inv)
     colors=[np.array(cm.hsv(i)[:3])*255 for i in range(256)]
     colordata=data.copy()
