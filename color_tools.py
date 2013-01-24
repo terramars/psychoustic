@@ -47,7 +47,7 @@ def draw_spectrum(power,psd,spectrum,shape,name,sym=2,inv=1):
     psdmax=psd.max()
     if psdmax <= 0.0:
         im=Image.new('RGB',shape)
-        return im,(0,0,0,0,0)
+        return np.array(im).astype(np.float32),(0,0,0,0,0)
     data=normalize_spectrum(spectrum,psd.max(),inv=inv)
     colors=[np.array(cm.hsv(i)[:3])*255 for i in range(256)]
     colordata=data.copy()
@@ -76,7 +76,7 @@ def draw_spectrum(power,psd,spectrum,shape,name,sym=2,inv=1):
     t4=time.time()
     im=Image.new('RGB',shape)
     #draw=ImageDraw.Draw(im)
-    im=np.array(im)
+    im=np.array(im).astype(np.float32)
     for i in range(sym):
         draw_points_interp(xs[i*nsemi:(i+1)*nsemi],ys[i*nsemi:(i+1)*nsemi],colors,im)
     t4=time.time()-t4
