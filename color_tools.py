@@ -6,20 +6,20 @@ def draw_points(xs,ys,colors,im):
     for i in range(len(xs)):
         im[xs[i],ys[i],:]+=np.array(colors[i])
 
-def interpolate_segment(im,x1,y1,x2,y2,color1,color2,n=8,min_dist=32):
+def interpolate_segment(im,x1,y1,x2,y2,color1,color2,n=8,min_dist=24):
     dx=x2-x1
     dy=y2-y1
     diff=(dx*dx+dy*dy)
     if diff<=min_dist*min_dist:
-        im[x1,y1,:]=color1
-        im[x2,y2,:]=color2
+        im[x1,y1,:]+=color1
+        im[x2,y2,:]+=color2
         return
     n*=1.0
     dx/=n
     dy/=n
     for i in range(int(n+1)):
         #color=color1*(1-i/n)+color2*(i/n)
-        im[int(x1+i*dx),int(y1+i*dy),:]=color1
+        im[int(x1+i*dx),int(y1+i*dy),:]+=color1
 
 def draw_points_interp(xs,ys,colors,im):
     colors=[np.array(c) for c in colors]
@@ -41,14 +41,14 @@ def get_colors(colors,colorads,colordata,outerval=4.0):
     normcolor=outerval*np.ones(3)
     return [rad_and_data_to_value(colors,colorads[i],colordata[i],normcolor) for i in range(len(colorads))]
 
-def draw_spectrum(power,psd,spectrum,shape,name,sym=2,inv=1):
+def draw_spectrum(power,psd,spectrum,shape,name,sym=2,inv=1,overlap=1):
     #colors=[np.array(cm.jet(i)[:3])*255 for i in range(256)]
     t0=time.time()
     psdmax=psd.max()
     if psdmax <= 0.0:
         im=Image.new('RGB',shape)
         return np.array(im).astype(np.float32),(0,0,0,0,0)
-    data=normalize_spectrum(spectrum,psdmax,inv=inv)
+    data=normalize_spectrum(spectrum,psdmax,inv=1)
     colors=[np.array(cm.hsv(i)[:3])*255 for i in range(256)]
     colordata=data.copy()
     colordata=(1.0-colordata)**(1/3.0)
@@ -62,7 +62,7 @@ def draw_spectrum(power,psd,spectrum,shape,name,sym=2,inv=1):
     t0=time.time()-t0
     t1=time.time()
     #colordata*=255
-    xs,ys=data_to_circle(data,psd,sym=sym)
+    xs,ys=data_to_circle(data,psd,sym=sym,overlap=overlap)
     xs,ys=center_circle(xs,ys,shape)
     t1=time.time()-t1
     t2=time.time()
@@ -117,7 +117,8 @@ def convolve_image(im1,im2,name,rot=0,filt=1,same=0):
     im+=1.0000001
     im=np.log(im)
     im*=255.0/(im.max())
-    imsave(name,im.astype(np.uint8)[:-1,:-1])
+    if im.max()>im.min():
+        imsave(name,im.astype(np.uint8)[:-1,:-1])
     return im
 
 def file_to_images(fin,outdir,filetype='png',shape=(640,640),framerate=25,sym=2,rot=0,inv=1):
@@ -145,6 +146,8 @@ def file_to_images(fin,outdir,filetype='png',shape=(640,640),framerate=25,sym=2,
         #psd[:,0]=np.convolve(psd[:,0],gauss,'same')
         #psd[:,1]=np.convolve(psd[:,1],gauss,'same')
         spectrum=10*np.log10(psd+1e-20)
+        if spectrum.max()>-20 and os.path.isfile('%sconv%05d.%s'%(outdir,i,filetype)):
+            continue
         t3+=time.time()-t4
         t4=time.time()
         if signal.shape[1]==2:

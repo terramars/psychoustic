@@ -88,7 +88,7 @@ def normalize_spectrum(spectrum,power,offset=-20,inv=1,scales=(24.0,8.0)):
     data/=max(data.max(),10.0)
     return data
 
-def data_to_circle(data,psd,sym=2):
+def data_to_circle(data,psd,sym=2,overlap=1):
     final_angle=2*pi/sym
     n=len(data)
     #if n%3:
@@ -96,7 +96,11 @@ def data_to_circle(data,psd,sym=2):
     #    psd=psd[:-1*(n%3)]
     #    n-=n%3
     #rads=get_radians_with_spectrum(psd,final_angle)
-    rads=get_radians(n,final_angle)
+    if not overlap:
+        rads=get_radians(n,final_angle)
+    else:
+        rads=get_radians(n,final_angle*np.log2(n))
+        rads=rads%final_angle
     offset=0
     direction=0
     #rad_low=get_radians(n/3,final_angle/2)
