@@ -52,7 +52,8 @@ def draw_spectrum(power,psd,spectrum,shape,name,sym=2,inv=1,overlap=1):
     colors=[np.array(cm.hsv(i)[:3])*255 for i in range(256)]
     colordata=data.copy()
     colordata=(1.0-colordata)**(1/3.0)
-    if np.log10(psdmax)>-2:
+    psdmax=10*np.log10(psdmax)
+    if psdmax>-20:
         colordata=np.choose(spectrum<-30,(colordata,colordata/10))
     else:
         colordata=np.choose(spectrum<psdmax-10,(colordata,colordata/10))
@@ -115,8 +116,9 @@ def convolve_image(im1,im2,name,rot=0,filt=1,same=0):
     im=np.choose(im>0,(0,im))
     im+=1.0000001
     im=np.log(im)
-    im*=255.0/(im.max())
     if im.max()>im.min():
+        im-=im.min()
+        im*=255.0/(im.max())
         imsave(name,im.astype(np.uint8)[:-1,:-1])
     return im
 
