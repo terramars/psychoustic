@@ -48,11 +48,12 @@ def draw_spectrum(power,psd,spectrum,shape,name,sym=2,inv=1,overlap=1):
     if psdmax <= 0.0:
         im=Image.new('RGB',shape)
         return np.array(im).astype(np.float32),(0,0,0,0,0)
-    data=normalize_spectrum(spectrum,psd.max(),inv=inv)
+    data=normalize_spectrum(spectrum,psdmax,inv=inv)
     colors=[np.array(cm.hsv(i)[:3])*255 for i in range(256)]
     colordata=data.copy()
     colordata=(1.0-colordata)**(1/3.0)
-    if np.log10(psdmax)>-2:
+    psdmax=10*np.log10(psdmax)
+    if psdmax>-20:
         colordata=np.choose(spectrum<-30,(colordata,colordata/10))
     else:
         colordata=np.choose(spectrum<psdmax-10,(colordata,colordata/10))
