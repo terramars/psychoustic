@@ -1,6 +1,35 @@
 import numpy as np
 from scipy import fftpack
 
+def fftshift_color(img):
+    fftshift = fftpack.fftshift
+    if len(img.shape)!=3:
+        return fftshift(img)
+    else:
+        for i in range(img.shape[2]):
+            img[:,:,i] = fftshift(img[:,:,i])
+    return img
+
+def create_image(r,i,j,k):
+    img = np.zeros((r.shape[0],r.shape[1],4))
+    img[:,:,0] = i
+    img[:,:,1] = j
+    img[:,:,2] = k
+    img[:,:,3] = np.abs(r)
+    img = fftshift_color(img)
+    return img
+
+def normalize(img):
+    img -= img.min()
+    img /= img.max()
+    return img
+
+def log_normalize(img):
+    img = np.multiply(np.log(1+np.abs(img)),np.sign(img))
+    img[:,:,:3] = normalize(img[:,:,:3])
+    img[:,:,3] = normalize(img[:,:,3])
+    return img
+
 def decompose_h(r,i,j,k):
     if not type(r)==np.ndarray:
         r=np.zeros(i.shape,dtype=np.float32)
