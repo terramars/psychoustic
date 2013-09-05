@@ -1,5 +1,6 @@
 from viz_tools import *
 from pylab import cm
+import quaternion
 import time
 
 def draw_points(xs,ys,colors,im):
@@ -35,7 +36,9 @@ def rad_and_data_to_value(colors,rad,data,normcolor):
     data2=1-data
     color=colors[index]
     color=(color*(data)+normcolor*(data2))
-    return color
+    #if data<0.3:
+    #    color=normcolor
+    return color.astype(np.uint8)
 
 def get_colors(colors,colorads,colordata,outerval=4.0):
     normcolor=outerval*np.ones(3)
@@ -83,9 +86,28 @@ def draw_spectrum(power,psd,spectrum,shape,name,sym=2,inv=1):
     t4=time.time()-t4
     #imsave(name,im.astype(np.uint8))
     #im.save(name)
-    return im,(t0,t1,t2,t3,t4)#.astype(np.float32)
+    return np.array(im).astype(np.float32),(t0,t1,t2,t3,t4)#.astype(np.float32)
 
-def convolve_image(im1,im2,name,rot=0,filt=1,same=0):
+def convolve_quaternion(im1,im2,name,mode=0):
+    im1/=255.0
+    im1 = quaternion.pad(im1)
+    im2/=255.0
+    im2 = quaternion.pad(im2)
+    qfunc = quaternion.QCV2
+    if mode in (1,2,3):
+        qfunc = quaternion.SPQCV
+    r,i,j,k = qfunc(np.zeros(im1.shape[:2]),im1[:,:,0],im1[:,:,1],im1[:,:,2],np.zeros(im2.shape[:2]),im2[:,:,0],im2[:,:,1],im2[:,:,2],mode)
+    img = quaternion.create_image(r,i,j,k)
+    img = quaternion.sqrt_normalize(img)
+    for i in range(3):
+        img[:,:,i] = np.multiply(img[:,:,i],img[:,:,3])
+    img = quaternion.normalize(img[:,:,:3])
+    img *= 255.1
+    imsave(name,img.astype(np.uint8))
+    return img
+
+
+def convolve_image(im1,im2,name,rot=0,filt=1,same=0,mode=0):
     im=np.zeros((im1.shape[0]*2-1,im1.shape[0]*2-1,3))
     tmp1s=[]
     #print name
@@ -154,13 +176,14 @@ def file_to_images(fin,outdir,filetype='png',shape=(640,640),framerate=25,sym=2,
             #im2=draw_spectrum(power,psd[:,1],spectrum[:,1],shape,name='%s%05d_2.%s'%(outdir,i,filetype),sym=sym,inv=inv)
             t1+=time.time()-t4
             t4=time.time()
-            convolve_image(im1,im1,name='%sconv%05d.%s'%(outdir,i,filetype),rot=rot,same=1)
+            imsave('%simg%05d.%s'%(outdir,i,filetype),im1)
+            convolve_quaternion(im1,im1,name='%sconv%05d.%s'%(outdir,i,filetype),mode=0)
             t2+=time.time()-t4
             t4=time.time()
         else:
             #spectrum = 10*np.log10(np.convolve(s.psd,gauss,'valid'))
             im=draw_spectrum(spectrum,shape,name='%s%05d_1.%s'%(outdir,i,filetype),sym=sym,inv=inv)
-            convolve_image(im,im,name='%sconv%05d.%s'%(outdir,i,filetype),rot=rot)
+            convolve_quaternion(im,im,name='%sconv%05d.%s'%(outdir,i,filetype),mode=0)
         if i%100==0:
             print i,time.time()-t0,t3,t1,t2,[(i,ts[i]) for i in range(5)]
     return
