@@ -111,24 +111,6 @@ def QFT1(r,i,j,k,inv=0):
     hq1k = (hck - hcr + hck[:,::-1] + hcr[:,::-1])/2
     return hq1r,hq1i,hq1j,hq1k
 
-def QFT2(r,i,j,k,inv=0,lum=1):
-    if lum:
-        ha,hb = decompose_lum(r,i,j,k)
-    else:
-        ha,hb = decompose_h(r,i,j,k)
-    fha = fftpack.fft2(ha)
-    fhb = fftpack.fft2(hb)
-    if inv:
-        fha /= fha.size
-        fha = fha[::-1]
-        fhb /= fhb.size
-        fhb = fhb[::-1]
-    hr = fha.real
-    hi = fha.imag
-    hj = fhb.real
-    hk = fhb.imag
-    return hr,hi,hj,hk
-
 def QFT3(r,i,j,k,inv=0):
     ha,hb = decompose_lum(r,i,j,k)
     fha = fftpack.fft2(ha)
@@ -155,6 +137,24 @@ def SPQCV(fr,fi,fj,fk,hr,hi,hj,hk,mode=1):
     fhr,fhi,fhj,fhk = qmult(fr,fi,fj,fk,hr,hi,hj,hk)
     return QFTfunc(fhr,fhi,fhj,fhk,inv=1)
 
+def QFT2(r,i,j,k,inv=0,lum=1):
+    if lum:
+        ha,hb = decompose_lum(r,i,j,k)
+    else:
+        ha,hb = decompose_h(r,i,j,k)
+    fha = fftpack.fft2(ha)
+    fhb = fftpack.fft2(hb)
+    if inv:
+        fha /= fha.size
+        fha = fha[::-1]
+        fhb /= fhb.size
+        fhb = fhb[::-1]
+    hr = fha.real
+    hi = fha.imag
+    hj = fhb.real
+    hk = fhb.imag
+    return hr,hi,hj,hk
+
 def QCV2(fr,fi,fj,fk,hr,hi,hj,hk,mode=None):
     fa,fb = decompose_lum(fr,fi,fj,fk)
     Hr,Hi,Hj,Hk = QFT2(hr,hi,hj,hk)
@@ -163,6 +163,15 @@ def QCV2(fr,fi,fj,fk,hr,hi,hj,hk,mode=None):
     fhar,fhai,fhaj,fhak = qmult(fa.real,fa.imag,0,0,Hr,Hi,Hj,Hk)
     fhbr,fhbi,fhbj,fhbk = qmult(0,0,fb.real,fb.imag,Hr[::-1],Hi[::-1],Hj[::-1],Hk[::-1])
     r,i,j,k = QFT2(fhar+fhbr,fhai+fhbi,fhaj+fhbj,fhak+fhbk,inv=1,lum=0)
+    return recompose_lum(r,i,j,k)
+
+def AQCV2(r,i,j,k,mode=None):
+    fa,fb = decompose_lum(r,i,j,k)
+    ffa = fftpack.fft2(fa)
+    ffb = fftpack.fft2(fb)
+    ffar,ffai,ffaj,ffak = qmult(ffa.real,ffa.imag,0,0,ffa.real,ffa.imag,ffb.real,ffb.imag)
+    ffbr,ffbi,ffbj,ffbk = qmult(0,0,ffb.real,ffb.imag,ffa.real[::-1],ffa.imag[::-1],ffb.real[::-1],ffb.imag[::-1])
+    r,i,j,k = QFT2(ffar+ffbr,ffai+ffbi,ffaj+ffbj,ffak+ffbk,inv=1,lum=0)
     return recompose_lum(r,i,j,k)
 
 def QCV3(fr,fi,fj,fk,hr,hi,hj,hk,mode=None):
