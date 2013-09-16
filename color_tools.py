@@ -179,13 +179,13 @@ def file_to_images(fin,outdir,filetype='png',shape=(640,640),framerate=25,sym=2,
             t1+=time.time()-t4
             t4=time.time()
             imsave('%simg%05d.%s'%(outdir,i,filetype),im1)
-            convolve_image(im1,im1,name='%sconv%05d.%s'%(outdir,i,filetype),mode=0)
+            convolve_quaternion(im1,im1,name='%sconv%05d.%s'%(outdir,i,filetype),mode=0)
             t2+=time.time()-t4
             t4=time.time()
         else:
             #spectrum = 10*np.log10(np.convolve(s.psd,gauss,'valid'))
             im=draw_spectrum(spectrum,shape,name='%s%05d_1.%s'%(outdir,i,filetype),sym=sym,inv=inv)
-            convolve_image(im,im,name='%sconv%05d.%s'%(outdir,i,filetype),mode=0)
+            convolve_quaternion(im,im,name='%sconv%05d.%s'%(outdir,i,filetype),mode=0)
         if i%100==0:
             print i,time.time()-t0,t3,t1,t2,[(i,ts[i]) for i in range(5)]
     return
