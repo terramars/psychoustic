@@ -137,7 +137,7 @@ def convolve_quaternion(im):
     im = quaternion.pad(im)
     r,i,j,k = quaternion.AQCV2(0, im[:,:,0], im[:,:,1], im[:,:,2])
     im = quaternion.create_image(r,i,j,k)
-    im = quaternion.log_normalize(im)
+    im = quaternion.sqrt_normalize(im)
     for i in range(3):
         im[:,:,i] = np.multiply(im[:,:,i],im[:,:,3])
     im *= 255.1
@@ -154,36 +154,34 @@ def render_file(fin, outdir, shape = (640,640), framerate = 25, sym = 6, inv = 1
     log_index = True
     n_octaves = None
     gram_args = []
-    gram_kwargs = {}
+    gram_kwargs = {'start':0,'end':None}
     if mode == 'dft':
         win = 2 * fs / framerate
         hop = fs / framerate
         nfft = None
         if 'w' in params:
             win = params['w']
-        if 'p' in params:
-            hop = params['p']
         if 'n' in params:
             nfft = params['n']
         gram = dft.PowerSpectrum(audio,nfft=nfft)
         gram_args = [win,hop]
     elif mode == 'cnt':
         n = 60
-        hop = 0.04
-        n_octaves = 8
+        hop = 1.0 / framerate
+        n_octaves = 9
         log_index = False
         if 'n' in params:
             n = params['n']
-        if 'p' in params:
-            hop = params['p']
         if 'o' in params:
             n_octaves = params['o']
         gram_args=[n]
         gram_kwargs['hop'] = hop
         gram_kwargs['freq_base'] = cqt.A0
         gram_kwargs['freq_max'] = cqt.A0 * 2**n_octaves
-
+        gram = cqt.CNTPowerSpectrum(audio)
     i=0
+    print gram_args
+    print gram_kwargs
     tqcv=0
     timesums=np.zeros(4)
     for spectrum in gram.walk(*gram_args,**gram_kwargs):
@@ -197,7 +195,7 @@ def render_file(fin, outdir, shape = (640,640), framerate = 25, sym = 6, inv = 1
         if i%100==0:
             print i,tqcv+timesums.sum(),tqcv,timesums
         i+=1
-    print 'done rendering',tqcv+timesums.sum(),tqcv,timesums
+    print 'done rendering',i,tqcv+timesums.sum(),tqcv,timesums
     return 
 
 

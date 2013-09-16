@@ -32,7 +32,7 @@ for fin in files:
     print '\n'
     print 'made wav'
 
-    render_file(wav,outdir,shape=(241,241),sym=6,framerate=framerate,inv=1)
+    render_file(wav,outdir,shape=(241,241),sym=4,framerate=framerate,inv=1,mode='cnt')
     print 'rendered images'
 
     p=os.popen('ffmpeg -y -r %d -sameq -i %sconv%%05d.png -i %s %s_tmp.avi'%(framerate,clean_outdir,clean_fin,clean_base))
