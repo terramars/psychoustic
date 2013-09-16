@@ -1,14 +1,16 @@
-from dear import spectrum, io
+from dear import io
+from dear.spectrum import dft, cqt
 from matplotlib import cm
 import numpy as np
 from PIL import ImageDraw, Image
 import quaternion
 from scipy.misc import imsave
+import os
 import time
 
 colormap = [(np.array(cm.hsv(i)[:3])*255).astype(np.uint8) for i in range(256)]
 
-def normalize_spectrum(spectrum,offset = -30,inv = 1,scales = (24.0,8.0)):
+def normalize_spectrum(spectrum,offset = -20,inv = 1,scales = (24.0,8.0)):
     maxp = spectrum.max()
     spectrum_p = np.choose(spectrum > offset,(0,spectrum-offset))
     spectrum_n = np.choose(spectrum <= offset,(0,offset-spectrum))
@@ -69,7 +71,7 @@ def data_to_circle(data,sym = 6,log_index = False):
 def center_circle(xs,ys,shape):
     radius = min(shape)/2
     centerx = shape[0]/2
-    centery = sha[e[1]/2
+    centery = shape[1]/2
     xs *= radius
     ys *= radius
     xs += centerx
@@ -86,7 +88,11 @@ def get_colors(data, spectrum, log_index = False, n_octaves = 7, outerval = 4.0)
     colordata = data.copy()
     n = data.shape[0]-1
     colordata = np.sqrt((1.0 - colordata))
-    colordata = np.choose(spectrum < spectrum.max()-15, (colordata,colordata/10))
+    if spectrum.max()>-20:
+        offset = -30
+    else:
+        offset = spectrum.max()-10
+    colordata = np.choose(spectrum < offset, (colordata,colordata/10))
     colordata -= colordata.min()
     colordata /= colordata.max()
     final_angle = 2*np.pi
@@ -95,18 +101,20 @@ def get_colors(data, spectrum, log_index = False, n_octaves = 7, outerval = 4.0)
     else:
         final_angle *= n_octaves
     colorads = get_radians(n, final_angle, log_index)
-    colorads = (rad%(2*np.pi)*(255/(2.0*np.pi))).astype(np.int32)
+    colorads = (colorads%(2*np.pi)*(255/(2.0*np.pi))).astype(np.int32)
     normcolor = outerval * np.ones(3)
     return [color_and_data_to_value(colormap[colorads[i]],colordata[i],colordata[i+1],normcolor) for i in range(n)]
 
 def draw_data(xs, ys, colors, shape):
     im = Image.new('RGB',shape)
     draw = ImageDraw.Draw(im)
+    n = len(colors)
     for i in range(xs.shape[0]):
-        draw.line( ( (xs[i,0],ys[i,0]), (xs[i,1],ys[i,1]) ),fill = tuple(colors[i]) )
+        draw.line( ( (xs[i,0],ys[i,0]), (xs[i,1],ys[i,1]) ),fill = tuple(colors[i%n]) )
     return np.array(im).astype(np.float32)/255.0
 
 def draw_spectrum(spectrum,shape,sym=6,inv=1,log_index=False, n_octaves = 7):
+    spectrum = 10*np.log10(spectrum)
     if spectrum.max() < -159:
         im = Image.new('RGB',shape)
         return np.array(im).astype(np.float32),(0,0,0,0)
@@ -121,7 +129,7 @@ def draw_spectrum(spectrum,shape,sym=6,inv=1,log_index=False, n_octaves = 7):
     colors = get_colors(data, spectrum, log_index, n_octaves)
     t2 = time.time()-t2
     t3 = time.time()
-    im = draw_data(xs,ys,colors,shape,sym)
+    im = draw_data(xs,ys,colors,shape)
     t3 = time.time()-t3
     return im, (t0,t1,t2,t3)
 
@@ -129,15 +137,17 @@ def convolve_quaternion(im):
     im = quaternion.pad(im)
     r,i,j,k = quaternion.AQCV2(0, im[:,:,0], im[:,:,1], im[:,:,2])
     im = quaternion.create_image(r,i,j,k)
-    im = quaternion.sqrt_normalize(im)
+    im = quaternion.log_normalize(im)
     for i in range(3):
-        im[:,:,i] = np.multiply(im[:,:,3])
+        im[:,:,i] = np.multiply(im[:,:,i],im[:,:,3])
     im *= 255.1
-    return im
+    return im[:,:,:3]
 
 def render_file(fin, outdir, shape = (640,640), framerate = 25, sym = 6, inv = 1, mode = 'dft', params = {}):
     decoder = io.get_decoder(name = 'audioread')
     audio = decoder.Audio(fin)
+    if not os.path.isdir(outdir):
+        os.mkdir(outdir)
     fs = audio.samplerate
     print 'fs: %d Hz, Duration: %d sec, Frames: %d'%(audio.samplerate,audio.duration,audio.duration*framerate)
     gram = None
@@ -187,7 +197,7 @@ def render_file(fin, outdir, shape = (640,640), framerate = 25, sym = 6, inv = 1
         if i%100==0:
             print i,tqcv+timesums.sum(),tqcv,timesums
         i+=1
-    print 'done rendering'
+    print 'done rendering',tqcv+timesums.sum(),tqcv,timesums
     return 
 
 
