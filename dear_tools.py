@@ -133,8 +133,9 @@ def draw_spectrum(spectrum,shape,sym=6,inv=1,log_index=False, n_octaves = 7):
     t3 = time.time()-t3
     return im, (t0,t1,t2,t3)
 
-def convolve_quaternion(im):
-    im = quaternion.pad(im)
+def convolve_quaternion(im,pad=True):
+    if pad:
+        im = quaternion.pad(im)
     r,i,j,k = quaternion.AQCV2(0, im[:,:,0], im[:,:,1], im[:,:,2])
     im = quaternion.create_image(r,i,j,k)
     im = quaternion.sqrt_normalize(im)
@@ -143,7 +144,7 @@ def convolve_quaternion(im):
     im *= 255.1
     return im[:,:,:3]
 
-def render_file(fin, outdir, shape = (640,640), framerate = 25, sym = 6, inv = 1, mode = 'dft', params = {}):
+def render_file(fin, outdir, shape = (640,640), framerate = 25, sym = 6, inv = 1, pad = True, mode = 'dft', params = {}):
     decoder = io.get_decoder(name = 'audioread')
     audio = decoder.Audio(fin)
     if not os.path.isdir(outdir):
@@ -185,11 +186,14 @@ def render_file(fin, outdir, shape = (640,640), framerate = 25, sym = 6, inv = 1
     tqcv=0
     timesums=np.zeros(4)
     for spectrum in gram.walk(*gram_args,**gram_kwargs):
+        if os.path.isfile(outdir+'conv%05d.png'%i):
+            i+=1
+            continue
         im,times = draw_spectrum(spectrum,shape,sym,inv,log_index,n_octaves)
         timesums += np.array(times)
-        imsave(outdir+'img%05d.png'%i,(im*255).astype(np.uint8))
+        #imsave(outdir+'img%05d.png'%i,(im*255).astype(np.uint8))
         t0=time.time()
-        im = convolve_quaternion(im)
+        im = convolve_quaternion(im,pad)
         tqcv += time.time()-t0
         imsave(outdir+'conv%05d.png'%i,im.astype(np.uint8))
         if i%100==0:
