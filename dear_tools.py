@@ -10,13 +10,13 @@ import time
 
 colormap = [(np.array(cm.hsv(i)[:3])*255).astype(np.uint8) for i in range(256)]
 
-def normalize_spectrum(spectrum,offset = -20,inv = 1,scales = (24.0,8.0)):
+def normalize_spectrum(spectrum,offset = 0,inv = 1,scales = (10.0,6.0)):
     maxp = spectrum.max()
     spectrum_p = np.choose(spectrum > offset,(0,spectrum-offset))
     spectrum_n = np.choose(spectrum <= offset,(0,offset-spectrum))
     data = np.ones(spectrum.shape) + scales[1]
-    spectrum_p = scales[0]*(1-1/np.log10(spectrum_p+10))
-    spectrum_n = scales[1]*(1-1/np.log10(spectrum_n+10))
+    spectrum_p = scales[0]*np.tanh(spectrum_p/20.0)
+    spectrum_n = scales[1]*np.tanh(spectrum_n/20.0)
     if inv:
         data -= spectrum_p
         data += spectrum_n
@@ -105,6 +105,16 @@ def get_colors(data, spectrum, log_index = False, n_octaves = 7, outerval = 4.0)
     normcolor = outerval * np.ones(3)
     return [color_and_data_to_value(colormap[colorads[i]],colordata[i],colordata[i+1],normcolor) for i in range(n)]
 
+def draw_sparse(xs,ys,colors,shape):
+    im = Image.new('RGB',shape)
+    draw = ImageDraw.Draw(im)
+    n=len(colors)
+    interpxs = xs[:,1]-(xs[:,1]-xs[:,0])/10
+    interpys = ys[:,1]-(ys[:,1]-ys[:,0])/10
+    for i in range(xs.shape[0]):
+        draw.line( ( (interpxs[i],interpys[i]), (xs[i,1],ys[i,1]) ),fill = tuple(colors[i%n]) )
+    return np.array(im).astype(np.float32)/255.0
+
 def draw_data(xs, ys, colors, shape):
     im = Image.new('RGB',shape)
     draw = ImageDraw.Draw(im)
@@ -137,6 +147,9 @@ def convolve_quaternion(im,pad=True):
     if pad:
         im = quaternion.pad(im)
     r,i,j,k = quaternion.AQCV2(0, im[:,:,0], im[:,:,1], im[:,:,2])
+    maxval = r.argmax()
+    for n in (r,i,j,k):
+        n.flatten()[maxval] = 0
     im = quaternion.create_image(r,i,j,k)
     im = quaternion.sqrt_normalize(im)
     for i in range(3):
@@ -191,7 +204,7 @@ def render_file(fin, outdir, shape = (640,640), framerate = 25, sym = 6, inv = 1
             continue
         im,times = draw_spectrum(spectrum,shape,sym,inv,log_index,n_octaves)
         timesums += np.array(times)
-        #imsave(outdir+'img%05d.png'%i,(im*255).astype(np.uint8))
+        imsave(outdir+'img%05d.png'%i,(im*255).astype(np.uint8))
         t0=time.time()
         im = convolve_quaternion(im,pad)
         tqcv += time.time()-t0

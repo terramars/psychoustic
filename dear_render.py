@@ -3,12 +3,16 @@ import os
 import shutil
 from dear_tools import *
 
-
-files=sys.argv[1:]
+mode = sys.argv[1]
+files=sys.argv[2:]
 files.sort()
 #fout=sys.argv[2]
 
 replace_chars=[' ','(',')','&',';',"'",'"']
+
+if mode not in ['dft','cnt']:
+    print 'invalid mode',mode
+    sys.exit(1)
 
 for fin in files:
     base=fin.rsplit('.',1)[0]
@@ -20,11 +24,11 @@ for fin in files:
     clean_outdir=clean_base+'_pics/'
     wav=base+'.wav'
     clean_wav=clean_base+'.wav'
-    fout=base+'_color.avi'
-    clean_fout=clean_base+'_color.avi'
+    fout=base+'_color_'+mode+'.avi'
+    clean_fout=clean_base+'_color_'+mode+'.avi'
     if os.path.isfile(fout):
         print 'already have ',fout,'skipping'
-        continue
+#        continue
     framerate=25
 
     p=os.popen('ffmpeg -y -i %s %s'%(clean_fin,clean_wav))
@@ -32,7 +36,7 @@ for fin in files:
     print '\n'
     print 'made wav'
 
-    render_file(wav,outdir,shape=(241,241),sym=4,framerate=framerate,inv=1,mode='cnt')
+    render_file(wav,outdir,shape=(256,256),sym=4,framerate=framerate,inv=1,pad=True,mode=mode)
     print 'rendered images'
 
     p=os.popen('ffmpeg -y -r %d -sameq -i %sconv%%05d.png -i %s %s_tmp.avi'%(framerate,clean_outdir,clean_fin,clean_base))
