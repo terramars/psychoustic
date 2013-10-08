@@ -4,6 +4,7 @@ from matplotlib import cm
 import numpy as np
 from PIL import ImageDraw, Image
 import quaternion
+from scipy import signal
 from scipy.misc import imsave
 import os
 import time
@@ -123,7 +124,16 @@ def draw_data(xs, ys, colors, shape):
         draw.line( ( (xs[i,0],ys[i,0]), (xs[i,1],ys[i,1]) ),fill = tuple(colors[i%n]) )
     return np.array(im).astype(np.float32)/255.0
 
-def draw_spectrum(spectrum,shape,sym=6,inv=1,log_index=False, n_octaves = 7):
+def edge_filter(im):
+    filt = np.ones((3,3))
+    filt[1,1]=0
+    edge = signal.convolve2d( np.choose(im.sum(axis=2)>0,(0,1)), filt, 'same')
+    edge = edge==8
+    for i in range(im.shape[2]):
+        im[:,:,i] = np.choose(edge,(im[:,:,i],0))
+    return im
+
+def draw_spectrum(spectrum,shape,sym=6,inv=1,log_index=False,n_octaves=7,edge=True):
     spectrum = 10*np.log10(spectrum)
     if spectrum.max() < -159:
         im = Image.new('RGB',shape)
@@ -140,6 +150,8 @@ def draw_spectrum(spectrum,shape,sym=6,inv=1,log_index=False, n_octaves = 7):
     t2 = time.time()-t2
     t3 = time.time()
     im = draw_data(xs,ys,colors,shape)
+    if edge:
+        im = edge_filter(im)
     t3 = time.time()-t3
     return im, (t0,t1,t2,t3)
 
@@ -157,7 +169,7 @@ def convolve_quaternion(im,pad=True):
     im *= 255.1
     return im[:,:,:3]
 
-def render_file(fin, outdir, shape = (640,640), framerate = 25, sym = 6, inv = 1, pad = True, mode = 'dft', params = {}):
+def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1, pad = True, mode = 'dft', params = {}):
     decoder = io.get_decoder(name = 'audioread')
     audio = decoder.Audio(fin)
     if not os.path.isdir(outdir):
@@ -190,7 +202,7 @@ def render_file(fin, outdir, shape = (640,640), framerate = 25, sym = 6, inv = 1
             n_octaves = params['o']
         gram_args=[n]
         gram_kwargs['hop'] = hop
-        gram_kwargs['freq_base'] = cqt.A0
+        gram_kwargs['freq_base'] = cqt.A0 * 2
         gram_kwargs['freq_max'] = cqt.A0 * 2**n_octaves
         gram = cqt.CNTPowerSpectrum(audio)
     i=0
