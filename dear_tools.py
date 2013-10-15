@@ -11,13 +11,13 @@ import time
 
 colormap = [(np.array(cm.hsv(i)[:3])*255).astype(np.uint8) for i in range(256)]
 
-def normalize_spectrum(spectrum,offset = 0,inv = 1,scales = (10.0,6.0)):
+def normalize_spectrum(spectrum,offset = -10,inv = 1,scales = (24.0,12)):
     maxp = spectrum.max()
     spectrum_p = np.choose(spectrum > offset,(0,spectrum-offset))
     spectrum_n = np.choose(spectrum <= offset,(0,offset-spectrum))
     data = np.ones(spectrum.shape) + scales[1]
-    spectrum_p = scales[0]*np.tanh(spectrum_p/20.0)
-    spectrum_n = scales[1]*np.tanh(spectrum_n/20.0)
+    spectrum_p = scales[0]*(1-1/np.log10(spectrum_p+10)) #np.tanh(spectrum_p/20.0)
+    spectrum_n = np.log2(np.exp(spectrum).sum()+2)*2*(1-1/np.log10(spectrum_n+10)) #np.tanh(spectrum_n/50.0)
     if inv:
         data -= spectrum_p
         data += spectrum_n
@@ -134,7 +134,7 @@ def edge_filter(im):
     return im
 
 def draw_spectrum(spectrum,shape,sym=6,inv=1,log_index=False,n_octaves=7,edge=True):
-    spectrum = 10*np.log10(spectrum)
+    spectrum = 10*np.log10(spectrum+1e-160)
     if spectrum.max() < -159:
         im = Image.new('RGB',shape)
         return np.array(im).astype(np.float32),(0,0,0,0)
