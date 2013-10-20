@@ -11,20 +11,31 @@ import time
 
 colormap = [(np.array(cm.hsv(i)[:3])*255).astype(np.uint8) for i in range(256)]
 
-def normalize_spectrum(spectrum,offset = -10,inv = 1,scales = (24.0,12)):
+def normalize_spectrum(spectrum,offset = -10,inv = 1,scales = (15.0,12.0,30.0),n_octaves=7,mode='cnt'):
     maxp = spectrum.max()
     spectrum_p = np.choose(spectrum > offset,(0,spectrum-offset))
     spectrum_n = np.choose(spectrum <= offset,(0,offset-spectrum))
-    data = np.ones(spectrum.shape) + scales[1]
-    spectrum_p = scales[0]*(1-1/np.log10(spectrum_p+10)) #np.tanh(spectrum_p/20.0)
-    spectrum_n = np.log2(np.exp(spectrum).sum()+2)*2*(1-1/np.log10(spectrum_n+10)) #np.tanh(spectrum_n/50.0)
+    spectrum = 10**(spectrum/10)
+    if 0 and mode == 'cnt':
+        power=np.log10(spectrum.sum())+1
+        binsize = 2**(np.linspace(0,n_octaves,len(spectrum)+1))*cqt.A0*2
+        binsize = binsize[1:]-binsize[:-1]
+        spectrum=np.multiply(spectrum,binsize)
+    else:
+        power = np.log10(np.sum(spectrum))+1
+    data = np.ones(spectrum.shape) + scales[2] 
+    spectrum_p = scales[0]*power*(1-1/np.log10(spectrum_p+10))
+    spectrum_n = scales[1]*(1-1/np.log10(spectrum_n+10)) #np.tanh(spectrum_n/50.0)
+    
     if inv:
         data -= spectrum_p
         data += spectrum_n
     else:
         data += spectrum_p
         data -= spectrum_n
-    data /= max(data.max(),10.0)
+   
+    print power, maxp, data.max()
+    data /= max(data.max(),30.0)
     return data
 
 def get_radians(n, final_angle = np.pi, log_index = False):
@@ -85,14 +96,19 @@ def color_and_data_to_value(color,data0,data1,normcolor):
     color = (color * opdata + normcolor * data2)
     return color.astype(np.uint8)
 
-def get_colors(data, spectrum, log_index = False, n_octaves = 7, outerval = 4.0):
+def get_colors(data, spectrum, log_index = False, n_octaves = 7, mode='cnt', outerval = 4.0):
     colordata = data.copy()
     n = data.shape[0]-1
     colordata = np.sqrt((1.0 - colordata))
-    if spectrum.max()>-20:
-        offset = -30
+    if mode=='cnt':
+        spectrum = 10**(spectrum/10)
+        binsize = 2**(np.linspace(0,n_octaves,len(spectrum)+1))*cqt.A0*2
+        binsize = binsize[1:]-binsize[:-1]
+        spectrum=10*np.log10(np.multiply(spectrum,binsize))
+    if spectrum.max()>10:
+        offset = -10
     else:
-        offset = spectrum.max()-10
+        offset = spectrum.max()-20
     colordata = np.choose(spectrum < offset, (colordata,colordata/10))
     colordata -= colordata.min()
     colordata /= colordata.max()
@@ -133,20 +149,20 @@ def edge_filter(im):
         im[:,:,i] = np.choose(edge,(im[:,:,i],0))
     return im
 
-def draw_spectrum(spectrum,shape,sym=6,inv=1,log_index=False,n_octaves=7,edge=True):
+def draw_spectrum(spectrum,shape,sym=6,inv=1,log_index=False,n_octaves=7,edge=True,mode='cnt'):
     spectrum = 10*np.log10(spectrum+1e-160)
     if spectrum.max() < -159:
         im = Image.new('RGB',shape)
         return np.array(im).astype(np.float32),(0,0,0,0)
     t0=time.time()
-    data = normalize_spectrum(spectrum,inv=inv)
+    data = normalize_spectrum(spectrum,inv=inv,n_octaves=n_octaves,mode=mode)
     t0 = time.time()-t0 
     t1 = time.time()
     xs, ys = data_to_circle(data, sym, log_index)
     xs, ys = center_circle(xs, ys, shape)
     t1 = time.time()-t1
     t2 = time.time()
-    colors = get_colors(data, spectrum, log_index, n_octaves)
+    colors = get_colors(data, spectrum, log_index, n_octaves, mode)
     t2 = time.time()-t2
     t3 = time.time()
     im = draw_data(xs,ys,colors,shape)
@@ -214,7 +230,7 @@ def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1
         if os.path.isfile(outdir+'conv%05d.png'%i):
             i+=1
             continue
-        im,times = draw_spectrum(spectrum,shape,sym,inv,log_index,n_octaves)
+        im,times = draw_spectrum(spectrum,shape,sym,inv,log_index,n_octaves,mode=mode)
         timesums += np.array(times)
         imsave(outdir+'img%05d.png'%i,(im*255).astype(np.uint8))
         t0=time.time()
