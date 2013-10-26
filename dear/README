@@ -1,0 +1,6 @@
+[Requirement]
+
+numpy
+scipy
+matplotlib
+audioread
