@@ -1,5 +1,5 @@
 from dear import io
-from dear.spectrum import dft, cqt
+from dear.spectrum import dft, cqt, auditory
 from matplotlib import cm
 import numpy as np
 from PIL import ImageDraw, Image
@@ -11,21 +11,21 @@ import time
 
 colormap = [(np.array(cm.hsv(i)[:3])*255).astype(np.uint8) for i in range(256)]
 
-def normalize_spectrum(spectrum,offset = -10,inv = 1,scales = (15.0,12.0,30.0),n_octaves=7,mode='cnt'):
+def normalize_spectrum(spectrum,min_offset = -25,max_offset = -5,follow_distance = 20,inv = 1,scales = (10.0,5.0,50.0),n_octaves=7,mode='cnt'):
     maxp = spectrum.max()
+    offset = maxp - follow_distance
+    if offset < min_offset:
+        offset = min_offset
+    if offset > max_offset:
+        offset = max_offset
     spectrum_p = np.choose(spectrum > offset,(0,spectrum-offset))
     spectrum_n = np.choose(spectrum <= offset,(0,offset-spectrum))
     spectrum = 10**(spectrum/10)
-    if 0 and mode == 'cnt':
-        power=np.log10(spectrum.sum())+1
-        binsize = 2**(np.linspace(0,n_octaves,len(spectrum)+1))*cqt.A0*2
-        binsize = binsize[1:]-binsize[:-1]
-        spectrum=np.multiply(spectrum,binsize)
-    else:
-        power = np.log10(np.sum(spectrum))+1
+    power = np.log10(np.sum(spectrum))+2
+    dpmp = 10*(power-2)-maxp
     data = np.ones(spectrum.shape) + scales[2] 
-    spectrum_p = scales[0]*power*(1-1/np.log10(spectrum_p+10))
-    spectrum_n = scales[1]*(1-1/np.log10(spectrum_n+10)) #np.tanh(spectrum_n/50.0)
+    spectrum_p = scales[0]*power*np.tanh(spectrum_p/(10*np.sqrt(power))) #(1-1/np.log10(spectrum_p+10))
+    spectrum_n = scales[1]*np.tanh(spectrum_n/50) #(1-1/np.log10(spectrum_n+10))
     
     if inv:
         data -= spectrum_p
@@ -34,8 +34,8 @@ def normalize_spectrum(spectrum,offset = -10,inv = 1,scales = (15.0,12.0,30.0),n
         data += spectrum_p
         data -= spectrum_n
    
-    print power, maxp, data.max()
-    data /= max(data.max(),30.0)
+    print offset, power, maxp, dpmp, data.max(), data.min()
+    data /= data.max()
     return data
 
 def get_radians(n, final_angle = np.pi, log_index = False):
@@ -104,9 +104,9 @@ def get_colors(data, spectrum, log_index = False, n_octaves = 7, mode='cnt', out
         spectrum = 10**(spectrum/10)
         binsize = 2**(np.linspace(0,n_octaves,len(spectrum)+1))*cqt.A0*2
         binsize = binsize[1:]-binsize[:-1]
-        spectrum=10*np.log10(np.multiply(spectrum,binsize))
-    if spectrum.max()>10:
-        offset = -10
+        spectrum=10*np.log10(np.multiply(spectrum,np.log10(binsize+1)))
+    if spectrum.max()>20:
+        offset = 0
     else:
         offset = spectrum.max()-20
     colordata = np.choose(spectrum < offset, (colordata,colordata/10))
@@ -210,7 +210,7 @@ def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1
     elif mode == 'cnt':
         n = 60
         hop = 1.0 / framerate
-        n_octaves = 9
+        n_octaves = 8
         log_index = False
         if 'n' in params:
             n = params['n']
@@ -221,6 +221,23 @@ def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1
         gram_kwargs['freq_base'] = cqt.A0 * 2
         gram_kwargs['freq_max'] = cqt.A0 * 2**n_octaves
         gram = cqt.CNTPowerSpectrum(audio)
+    elif mode == 'gmt':
+        n = 60
+        hop = 1.0 / framerate
+        n_octaves = 9
+        log_index = False
+        if 'n' in params:
+            n = params['n']
+        if 'o' in params:
+            n_octaves = params['o']
+        n = n * (n_octaves-1)
+        gram_args = [n]
+        gram_kwargs['thop'] = hop
+        gram_kwargs['twin'] = 2*hop
+        gram_kwargs['freq_base'] = cqt.A0 * 2
+        gram_kwargs['freq_max'] = cqt.A0 * 2**n_octaves
+        gram_kwargs['combine'] = True
+        gram = auditory.GammatoneSpectrum(audio)
     i=0
     print gram_args
     print gram_kwargs
@@ -232,7 +249,7 @@ def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1
             continue
         im,times = draw_spectrum(spectrum,shape,sym,inv,log_index,n_octaves,mode=mode)
         timesums += np.array(times)
-        imsave(outdir+'img%05d.png'%i,(im*255).astype(np.uint8))
+        #imsave(outdir+'img%05d.png'%i,(im*255).astype(np.uint8))
         t0=time.time()
         im = convolve_quaternion(im,pad)
         tqcv += time.time()-t0

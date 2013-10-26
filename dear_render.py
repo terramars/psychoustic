@@ -11,7 +11,7 @@ files.sort()
 
 replace_chars=[' ','(',')','&',';',"'",'"']
 
-if mode not in ['dft','cnt']:
+if mode not in ['dft','cnt','gmt']:
     print 'invalid mode',mode
     sys.exit(1)
 
@@ -31,7 +31,7 @@ for fin in files:
     clean_fout+='.avi'
     if os.path.isfile(fout):
         print 'already have ',fout,'skipping'
-#        continue
+        continue
     framerate=25
 
     p=os.popen('ffmpeg -y -i %s %s'%(clean_fin,clean_wav))
@@ -39,9 +39,10 @@ for fin in files:
     print '\n'
     print 'made wav'
 
-    render_file(wav,outdir,shape=(512,512),sym=sym,framerate=framerate,inv=1,pad=True,mode=mode)
+    render_file(wav,outdir,shape=(256,256),sym=sym,framerate=framerate,inv=1,pad=True,mode=mode)
     print 'rendered images'
 
+    #p=os.popen('ffmpeg -y -r %d -sameq -i %simg%%05d.png -i %s %s'%(framerate,clean_outdir,clean_fin,clean_fout.rsplit('.',1)[0]+'_img.avi'))
     p=os.popen('ffmpeg -y -r %d -sameq -i %sconv%%05d.png -i %s %s'%(framerate,clean_outdir,clean_fin,clean_fout))
     p.close()
     print '\n'
