@@ -24,7 +24,7 @@ def normalize_spectrum(spectrum,min_offset = -25,max_offset = -5,follow_distance
     power = np.log10(np.sum(spectrum))+2
     dpmp = 10*(power-2)-maxp
     data = np.ones(spectrum.shape) + scales[2] 
-    spectrum_p = scales[0]*power*np.tanh(spectrum_p/(10*np.sqrt(power))) #(1-1/np.log10(spectrum_p+10))
+    spectrum_p = scales[0]*power*np.tanh(spectrum_p/20) #(1-1/np.log10(spectrum_p+10))
     spectrum_n = scales[1]*np.tanh(spectrum_n/50) #(1-1/np.log10(spectrum_n+10))
     
     if inv:
@@ -172,17 +172,29 @@ def draw_spectrum(spectrum,shape,sym=6,inv=1,log_index=False,n_octaves=7,edge=Tr
     return im, (t0,t1,t2,t3)
 
 def convolve_quaternion(im,pad=True):
+    #t0=time.time()
     if pad:
         im = quaternion.pad(im)
+    #print 'pad',time.time()-t0
+    #t0=time.time()
     r,i,j,k = quaternion.AQCV2(0, im[:,:,0], im[:,:,1], im[:,:,2])
+    #print 'aqcv',time.time()-t0
+    #t0=time.time()
     maxval = r.argmax()
     for n in (r,i,j,k):
         n.flatten()[maxval] = 0
+    #print 'zero',time.time()-t0
+    #t0=time.time()
     im = quaternion.create_image(r,i,j,k)
-    im = quaternion.sqrt_normalize(im)
+    #print 'image',time.time()-t0
+    #t0=time.time()
+    im = quaternion.sqrt_normalize_gpu(im)
+    #print 'normalize',time.time()-t0
+    #t0=time.time()
     for i in range(3):
         im[:,:,i] = np.multiply(im[:,:,i],im[:,:,3])
     im *= 255.1
+    #print 'alpha',time.time()-t0
     return im[:,:,:3]
 
 def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1, pad = True, mode = 'dft', params = {}):

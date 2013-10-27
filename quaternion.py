@@ -1,5 +1,29 @@
 import numpy as np
 from scipy import fftpack
+from pyfft.cl import Plan
+import pyopencl as cl
+import pyopencl.array as cl_array
+from pyopencl import clmath
+import time
+
+ctx = cl.create_some_context(interactive=False)
+queue = cl.CommandQueue(ctx)
+plan = None
+posr = None
+negr = None
+posa = None
+nega = None
+
+def gpu_fft(data,inverse=False):
+    global plan, ctx, queue
+    if not plan:
+        print 'building plan',data.shape
+        plan = Plan(data.shape, queue=queue,wait_for_finish = True)
+    #gpu_data = cl_array.to_device(ctx,queue,data.astype(np.complex64))
+    result = cl_array.zeros_like(data)
+    plan.execute(data.data, data_out = result.data, inverse=inverse)
+    #result = gpu_data.get()
+    return result
 
 def fftshift_color(img):
     fftshift = fftpack.fftshift
@@ -53,6 +77,33 @@ def sqrt_normalize(img):
     img = np.multiply(np.sqrt(np.abs(img)),np.sign(img))
     return normalize(img)
 
+def normalize_gpu(rgb,a):
+    arr = rgb.get()
+    rgb -= arr.min()
+    rgb /= arr.max()
+    arr = a.get()
+    a -= arr.min()
+    a /= arr.max()
+    rgb = rgb.get()
+    a = a.get()
+    img = np.zeros((a.shape[0],a.shape[1],4),dtype=np.float32)
+    img[:,:,:3] = rgb
+    img[:,:,3] = a
+    return img
+
+def sqrt_normalize_gpu(img):
+    global posr,negr,posa,nega
+    rgb = cl_array.to_device(queue,img[:,:,:3].copy())
+    a = cl_array.to_device(queue,img[:,:,3].copy())
+    if not posr:
+        posr = cl_array.zeros_like(rgb) + 1 
+        negr = cl_array.zeros_like(rgb) - 1
+        posa = cl_array.zeros_like(a) + 1
+        nega = cl_array.zeros_like(a) - 1
+    rgb = clmath.sqrt(abs(rgb)) * cl_array.if_positive(rgb,posr,negr)
+    a = clmath.sqrt(abs(a)) * cl_array.if_positive(a,posa,nega)
+    return normalize_gpu(rgb,a)
+
 def decompose_h(r,i,j,k):
     if not type(r)==np.ndarray:
         r=np.zeros(i.shape,dtype=np.float32)
@@ -64,16 +115,39 @@ def decompose_h(r,i,j,k):
     hb.imag += k
     return ha,hb
 
+def decompose_h_gpu(r,i,j,k):
+    global queue
+    ha = cl_array.zeros(queue,i.shape,dtype=np.complex64)
+    ha += r
+    ha += i*1j
+    hb = cl_array.zeros(queue,i.shape,dtype=np.complex64)
+    hb += j
+    hb += k*1j
+    return ha,hb
+
+def decompose_lum_gpu(r,i,j,k):
+    global queue
+    ha = cl_array.zeros(queue,i.shape,dtype=np.complex64)
+    ha += r
+    lum = (i+j+k)/float(np.sqrt(3.0))
+    ha += lum*1j
+    hb = cl_array.zeros(queue,i.shape,dtype=np.complex64)
+    cr1 = (j-k)/float(np.sqrt(2.0))
+    cr2 = (-2*i+j+k)/float(2.0)
+    hb += cr1
+    hb += cr2*1j
+    return ha,hb
+
 def decompose_lum(r,i,j,k):
     ha = np.zeros(i.shape,dtype=np.complex64)
-    ha.real = r
+    ha += r
     lum = (i+j+k)/np.sqrt(3.0)
-    ha.imag = lum
+    ha += lum*1j
     hb = np.zeros(i.shape,dtype=np.complex64)
     cr1 = (j-k)/np.sqrt(2.0)
     cr2 = (-2*i+j+k)/2.0
-    hb.real = cr1
-    hb.imag = cr2
+    hb += cr1
+    hb += cr2*1j
     return ha,hb
 
 def recompose_lum(r,i,j,k):
@@ -85,11 +159,27 @@ def recompose_lum(r,i,j,k):
     k = lum + cr2 - cr1
     return r,i,j,k
 
+def recompose_lum_gpu(r,i,j,k):
+    lum = i / np.sqrt(3)
+    cr1 = j / np.sqrt(2)
+    cr2 = k / 3
+    j = lum + cr1 + cr2
+    i = lum - 2 * cr2
+    k = lum + cr2 - cr1
+    return r.get(),i.get(),j.get(),k.get()
+
 def qmult(r0,i0,j0,k0,r1,i1,j1,k1):
     r = np.multiply(r0,r1) - np.multiply(i0,i1) - np.multiply(j0,j1) - np.multiply(k0,k1)
     i = np.multiply(r0,i1) + np.multiply(i0,r1) + np.multiply(j0,k1) - np.multiply(k0,j1)
     j = np.multiply(r0,j1) + np.multiply(j0,r1) + np.multiply(k0,i1) - np.multiply(i0,k1)
     k = np.multiply(r0,k1) + np.multiply(k0,r1) + np.multiply(i0,j1) - np.multiply(j0,i1)
+    return r,i,j,k
+
+def qmult_gpu(r0,i0,j0,k0,r1,i1,j1,k1):
+    r = r0*r1 - i0*i1 - j0*j1 - k0*k1
+    i = r0*i1 + i0*r1 + j0*k1 - k0*j1
+    j = r0*j1 + j0*r1 + k0*i1 - i0*k1
+    k = r0*k1 + k0*r1 + i0*j1 - j0*i1
     return r,i,j,k
 
 def QFT1(r,i,j,k,inv=0):
@@ -139,16 +229,18 @@ def SPQCV(fr,fi,fj,fk,hr,hi,hj,hk,mode=1):
 
 def QFT2(r,i,j,k,inv=0,lum=1):
     if lum:
-        ha,hb = decompose_lum(r,i,j,k)
+        ha,hb = decompose_lum_gpu(r,i,j,k)
     else:
-        ha,hb = decompose_h(r,i,j,k)
-    fha = fftpack.fft2(ha)
-    fhb = fftpack.fft2(hb)
+        ha,hb = decompose_h_gpu(r,i,j,k)
+    #fha = fftpack.fft2(ha)
+    #fhb = fftpack.fft2(hb)
+    fha = gpu_fft(ha)
+    fhb = gpu_fft(hb)
     if inv:
         fha /= fha.size
-        fha = fha[::-1]
+        fha = reverse_gpu(fha)
         fhb /= fhb.size
-        fhb = fhb[::-1]
+        fhb = reverse_gpu(fhb)
     hr = fha.real
     hi = fha.imag
     hj = fhb.real
@@ -156,23 +248,51 @@ def QFT2(r,i,j,k,inv=0,lum=1):
     return hr,hi,hj,hk
 
 def QCV2(fr,fi,fj,fk,hr,hi,hj,hk,mode=None):
-    fa,fb = decompose_lum(fr,fi,fj,fk)
+    print 'ERROR : BROKEN FOR NOW'
+    raise Exception
+    r = cl_array.to_device(ctx,queue,r.astype(np.float32))
+    i = cl_array.to_device(ctx,queue,i.astype(np.float32))
+    j = cl_array.to_device(ctx,queue,j.astype(np.float32))
+    k = cl_array.to_device(ctx,queue,k.astype(np.float32))
+    fa,fb = decompose_lum_gpu(fr,fi,fj,fk)
     Hr,Hi,Hj,Hk = QFT2(hr,hi,hj,hk)
-    fa = fftpack.fft2(fa)
-    fb = fftpack.fft2(fb)
-    fhar,fhai,fhaj,fhak = qmult(fa.real,fa.imag,0,0,Hr,Hi,Hj,Hk)
-    fhbr,fhbi,fhbj,fhbk = qmult(0,0,fb.real,fb.imag,Hr[::-1],Hi[::-1],Hj[::-1],Hk[::-1])
+    fa = gpu_fft(fa)
+    fb = gpu_fft(fb)
+    fhar,fhai,fhaj,fhak = qmult_gpu(fa.real,fa.imag,0,0,Hr,Hi,Hj,Hk)
+    fhbr,fhbi,fhbj,fhbk = qmult_gpu(0,0,fb.real,fb.imag,Hr[::-1],Hi[::-1],Hj[::-1],Hk[::-1])
     r,i,j,k = QFT2(fhar+fhbr,fhai+fhbi,fhaj+fhbj,fhak+fhbk,inv=1,lum=0)
-    return recompose_lum(r,i,j,k)
+    return recompose_lum_gpu(r,i,j,k)
+
+def reverse_gpu(arr):
+    return cl_array.to_device(queue,arr.get()[::-1].copy())
 
 def AQCV2(r,i,j,k,mode=None):
-    fa,fb = decompose_lum(r,i,j,k)
-    ffa = fftpack.fft2(fa)
-    ffb = fftpack.fft2(fb)
-    ffar,ffai,ffaj,ffak = qmult(ffa.real,ffa.imag,0,0,ffa.real,ffa.imag,ffb.real,ffb.imag)
-    ffbr,ffbi,ffbj,ffbk = qmult(0,0,ffb.real,ffb.imag,ffa.real[::-1],ffa.imag[::-1],ffb.real[::-1],ffb.imag[::-1])
+    #t0=time.time()
+    if r == 0:
+        r = np.zeros(i.shape)
+    r = cl_array.to_device(queue,r.astype(np.complex64))
+    i = cl_array.to_device(queue,i.astype(np.complex64))
+    j = cl_array.to_device(queue,j.astype(np.complex64))
+    k = cl_array.to_device(queue,k.astype(np.complex64))
+    fa,fb = decompose_lum_gpu(r,i,j,k)
+    #print 'load and decompose',time.time()-t0
+    #ffa = fftpack.fft2(fa)
+    #ffb = fftpack.fft2(fb)
+    #t0=time.time()
+    ffa = gpu_fft(fa)
+    ffb = gpu_fft(fb)
+    #print 'first ffts',time.time()-t0
+    #t0=time.time()
+    ffar,ffai,ffaj,ffak = qmult_gpu(ffa.real,ffa.imag,0,0,ffa.real,ffa.imag,ffb.real,ffb.imag)
+    ffbr,ffbi,ffbj,ffbk = qmult_gpu(0,0,ffb.real,ffb.imag,reverse_gpu(ffa.real),reverse_gpu(ffa.imag),reverse_gpu(ffb.real),reverse_gpu(ffb.imag))
+    #print 'qmult',time.time()-t0
+    #t0=time.time()
     r,i,j,k = QFT2(ffar+ffbr,ffai+ffbi,ffaj+ffbj,ffak+ffbk,inv=1,lum=0)
-    return recompose_lum(r,i,j,k)
+    #print 'qft2',time.time()-t0
+    #t0=time.time()
+    out = recompose_lum_gpu(r,i,j,k)
+    #print 'recompose',time.time()-t0
+    return out
 
 def QCV3(fr,fi,fj,fk,hr,hi,hj,hk,mode=None):
     ha,hd = decompose_h(hr,hi,hj,hk)
