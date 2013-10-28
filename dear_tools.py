@@ -230,7 +230,7 @@ def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1
             n_octaves = params['o']
         gram_args=[n]
         gram_kwargs['hop'] = hop
-        gram_kwargs['freq_base'] = cqt.A0 * 2
+        gram_kwargs['freq_base'] = cqt.A0 * 4
         gram_kwargs['freq_max'] = cqt.A0 * 2**n_octaves
         gram = cqt.CNTPowerSpectrum(audio)
     elif mode == 'gmt':
@@ -246,7 +246,7 @@ def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1
         gram_args = [n]
         gram_kwargs['thop'] = hop
         gram_kwargs['twin'] = 2*hop
-        gram_kwargs['freq_base'] = cqt.A0 * 2
+        gram_kwargs['freq_base'] = cqt.A0 * 4
         gram_kwargs['freq_max'] = cqt.A0 * 2**n_octaves
         gram_kwargs['combine'] = True
         gram = auditory.GammatoneSpectrum(audio)
