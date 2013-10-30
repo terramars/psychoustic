@@ -188,7 +188,7 @@ def convolve_quaternion(im,pad=True):
     im = quaternion.create_image(r,i,j,k)
     #print 'image',time.time()-t0
     #t0=time.time()
-    im = quaternion.sqrt_normalize_gpu(im)
+    im = quaternion.sqrt_normalize(im)
     #print 'normalize',time.time()-t0
     #t0=time.time()
     for i in range(3):

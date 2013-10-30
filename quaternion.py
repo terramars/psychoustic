@@ -14,6 +14,26 @@ negr = None
 posa = None
 nega = None
 
+def makeGaussian(size, fwhm = 3, center=None):
+    """ Make a square gaussian kernel.
+
+    size is the length of a side of the square
+    fwhm is full-width-half-maximum, which
+    can be thought of as an effective radius.
+    """
+    x = np.arange(0, size, 1, float)
+    y = x[:,np.newaxis]
+
+    if center is None:
+        x0 = y0 = size // 2
+    else:
+        x0 = center[0]
+        y0 = center[1]
+
+    return np.exp(-4*np.log(2) * ((x-x0)**2 + (y-y0)**2) / fwhm**2)
+
+gauss = 1-makeGaussian(24,8)/2
+
 def gpu_fft(data,inverse=False):
     global plan, ctx, queue
     if not plan:
@@ -54,7 +74,10 @@ def pad(im):
     return newim
 
 def normalize(img):
+    global gauss
     if len(img.shape)>2:
+        for i in range(img.shape[2]):
+            img[img.shape[0]/2-12:img.shape[0]/2+12,img.shape[1]/2-12:img.shape[1]/2+12,i] *= gauss
         img[:,:,:3] -= img[:,:,:3].min()
         img[:,:,:3] /= img[:,:,:3].max()
         if img.shape[2] == 4:
@@ -74,7 +97,13 @@ def log_normalize(img):
     return normalize(img)
 
 def sqrt_normalize(img):
-    img = np.multiply(np.sqrt(np.abs(img)),np.sign(img))
+    norm = np.sqrt(np.sqrt(np.sum(np.multiply(img[:,:,:3],img[:,:,:3]),axis=-1)))
+    norm += 1e-10
+    img[:,:,0] /= norm
+    img[:,:,1] /= norm
+    img[:,:,2] /= norm
+    img[:,:,3] = np.sqrt(img[:,:,3])
+    
     return normalize(img)
 
 def normalize_gpu(rgb,a):
