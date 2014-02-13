@@ -69,7 +69,7 @@ class Spectrum(SpectrumBase):
         for wl in var.WL:
             fqs.append("%.2f" % (float(samplerate) / wl * Q))
         print fqs
-        self.fqs = fqs
+        self.fqs = map(float,fqs)
         transform = self.transform
         #
         for samples in self.audio.walk(win, step, start, end, join_channels):
@@ -183,6 +183,7 @@ class CNTSpectrum(SpectrumBase):
         for q,wl in zip(var.QV,var.WL):
             fqs.append("%.2f" % (float(self.audio.samplerate) / wl * q))
         print fqs
+        self.fqs = map(float,fqs)
         #
         return N, k_max, win, step, var
 

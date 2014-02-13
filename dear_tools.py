@@ -8,6 +8,9 @@ from scipy import signal
 from scipy.misc import imsave
 import os
 import time
+from iso226 import *
+
+iso = iso226_spl_itpl(1,True)
 
 colormap = [(np.array(cm.hsv(i)[:3])) for i in range(256)]
 colormap = [(255 * i / np.sqrt(np.dot(i,i))).astype(np.uint8) for i in colormap]
@@ -105,7 +108,7 @@ def color_and_data_to_value(color,data0,data1,normcolor):
     color = (color * opdata + normcolor * data2)
     return color.astype(np.uint8)
 
-def get_colors(data, spectrum, log_index = False, n_octaves = 7, mode='cnt', outerval = 4.0):
+def get_colors(data, spectrum, log_index = False, n_octaves = 7, mode='cnt', outerval = 4.0, sparsity_constraint = 0.2):
     colordata = data.copy()
     n = data.shape[0]-1
     colordata = np.sqrt((1.0 - colordata))
@@ -114,10 +117,17 @@ def get_colors(data, spectrum, log_index = False, n_octaves = 7, mode='cnt', out
         binsize = 2**(np.linspace(0,n_octaves,len(spectrum)+1))*cqt.A0*2
         binsize = binsize[1:]-binsize[:-1]
         spectrum=10*np.log10(np.multiply(spectrum,np.log10(binsize+1)))
-    if spectrum.max()>20:
+    spmax = spectrum.max()
+    if spmax>20:
         offset = 0
     else:
-        offset = spectrum.max()-20
+        offset = spmax-20
+    #print offset
+    nonsparse = (spectrum > offset).sum()
+    while nonsparse > len(spectrum) * sparsity_constraint:
+        offset = spmax - (spmax - offset) / 1.02
+        nonsparse = (spectrum > offset).sum()
+    #    print nonsparse, offset
     colordata = np.choose(spectrum < offset, (colordata,colordata/10))
     colordata -= colordata.min()
     colordata /= colordata.max()
@@ -263,11 +273,19 @@ def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1
     print gram_args
     print gram_kwargs
     tqcv=0
+    iso226_factors = None
     timesums=np.zeros(4)
     for spectrum in gram.walk(*gram_args,**gram_kwargs):
+        iso_init = isinstance(iso226_factors, np.ndarray)
+        if hasattr(gram, 'fqs') and not iso_init:
+            iso226_factors = np.array(map(iso,gram.fqs))
+            iso226_factors = 10 ** (iso226_factors / 10)
+            iso226_factors = 1 / iso226_factors
         if os.path.isfile(outdir+'conv%05d.png'%i):
             i+=1
             continue
+        if iso_init:
+            spectrum = np.multiply(spectrum,iso226_factors)
         im,times = draw_spectrum(spectrum,shape,sym,inv,log_index,n_octaves,mode=mode)
         timesums += np.array(times)
         #imsave(outdir+'img%05d.png'%i,(im*255).astype(np.uint8))
