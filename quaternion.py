@@ -4,6 +4,7 @@ from pyfft.cl import Plan
 import pyopencl as cl
 import pyopencl.array as cl_array
 from pyopencl import clmath
+from scipy import sparse
 import time
 
 ctx = cl.create_some_context(interactive=False)
@@ -13,6 +14,57 @@ posr = None
 negr = None
 posa = None
 nega = None
+
+index_color_matrix = None
+
+def init_index_colors(colors):
+    global index_color_matrix
+    n = len(colors)
+    index_color_matrix = np.zeros((n,n,4),dtype=np.float32)
+    for i in range(n):
+        ci = colors[i]
+        for j in range(i,n):
+            cj = colors[j]
+            newcolor = np.array([0,0,0,0],dtype=np.float32)
+            newcolor[0] = ci[0]*cj[0]-ci[1]*cj[1]-ci[2]*cj[2]-ci[3]*cj[3]
+            newcolor[1] = ci[0]*cj[1]+ci[1]*cj[0]+ci[2]*cj[3]-ci[3]*cj[2]
+            newcolor[2] = ci[0]*cj[2]+c2[2]*cj[0]+ci[3]*cj[1]-ci[1]*cj[3]
+            newcolor[3] = ci[0]*cj[3]+c3[3]*cj[0]+ci[1]*cj[2]-ci[2]*cj[1]
+            index_color_matrix[i,j,:]=newcolor
+            index_color_matrix[j,i,:]=newcolor
+
+def sparse_quaternion_convolution(im,tmp=None):
+    global index_color_matrix
+    if tmp:
+        index_color_matrix = tmp
+    print im.shape
+    t0=time.time()
+    sim = sparse.dok_matrix(im.sum(axis=2))
+    print 'sim',time.time()-t0
+    t0=time.time()
+    m,n,_ = im.shape
+    keys = sim.keys()
+    r = [i[0] for i in keys]
+    c = [i[1] for i in keys]
+    print 'nkeys',len(r)
+    I,K = np.meshgrid(r,r)
+    J,L = np.meshgrid(c,c)
+    print I.shape
+    #C = index_color_matrix[im[I,J],im[K,L]]
+    i1 = im[I,J]
+    i2 = im[K,L]
+    print 'grids',time.time()-t0
+    t0=time.time()
+    C = np.concatenate([i[:,:,np.newaxis] for i in qmult(0,i1[:,:,0],i1[:,:,1],i1[:,:,2],0,i2[:,:,0],i2[:,:,1],i2[:,:,2])],axis = 2)
+    print 'C',time.time()-t0
+    t0=time.time()
+    rows = (I+K).flatten()
+    cols = (J+L).flatten()
+    out = np.zeros((m*2-1,n*2-1,4),dtype=np.float32)
+    for i in range(im.shape[2]):
+        out[:,:,i] = sparse.coo_matrix((C[:,:,i].flatten(),(rows,cols)),shape=out.shape[:2]).toarray()
+    print 'done',time.time()-t0
+    return out
 
 def makeGaussian(size, fwhm = 3, center=None):
     """ Make a square gaussian kernel.
@@ -32,7 +84,7 @@ def makeGaussian(size, fwhm = 3, center=None):
 
     return np.exp(-4*np.log(2) * ((x-x0)**2 + (y-y0)**2) / fwhm**2)
 
-gauss = 1-makeGaussian(24,8)/2
+gauss = 1-makeGaussian(24,8)*.8
 
 def gpu_fft(data,inverse=False):
     global plan, ctx, queue

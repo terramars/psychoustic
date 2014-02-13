@@ -9,7 +9,16 @@ from scipy.misc import imsave
 import os
 import time
 
-colormap = [(np.array(cm.hsv(i)[:3])*255).astype(np.uint8) for i in range(256)]
+colormap = [(np.array(cm.hsv(i)[:3])) for i in range(256)]
+colormap = [(255 * i / np.sqrt(np.dot(i,i))).astype(np.uint8) for i in colormap]
+
+def init_palette(n = 64):
+    i = np.arange(0,256)
+    div = np.linspace(0,255,n+1)[1]
+    quant = np.int0(np.linspace(0,255,n))
+    color_levels = np.clip(np.int0(i/div),0,n-1)
+    palette = quant[color_levels]
+    return palette
 
 def normalize_spectrum(spectrum,min_offset = -25,max_offset = -5,follow_distance = 20,inv = 1,scales = (10.0,5.0,50.0),n_octaves=7,mode='cnt'):
     maxp = spectrum.max()
@@ -172,11 +181,11 @@ def draw_spectrum(spectrum,shape,sym=6,inv=1,log_index=False,n_octaves=7,edge=Tr
     return im, (t0,t1,t2,t3)
 
 def convolve_quaternion(im,pad=True):
-    #t0=time.time()
     if pad:
         im = quaternion.pad(im)
     #print 'pad',time.time()-t0
     #t0=time.time()
+    
     r,i,j,k = quaternion.AQCV2(0, im[:,:,0], im[:,:,1], im[:,:,2])
     #print 'aqcv',time.time()-t0
     #t0=time.time()

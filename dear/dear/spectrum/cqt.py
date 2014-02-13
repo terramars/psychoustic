@@ -69,6 +69,7 @@ class Spectrum(SpectrumBase):
         for wl in var.WL:
             fqs.append("%.2f" % (float(samplerate) / wl * Q))
         print fqs
+        self.fqs = fqs
         transform = self.transform
         #
         for samples in self.audio.walk(win, step, start, end, join_channels):
