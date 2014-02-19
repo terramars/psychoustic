@@ -29,14 +29,19 @@ def normalize_spectrum(spectrum,min_offset = -25,max_offset = -5,follow_distance
     if offset < min_offset:
         offset = min_offset
     if offset > max_offset:
+        follow_distance = maxp - max_offset
         offset = max_offset
+    sparsity_constraint = 0.2
+    while (spectrum > offset).sum() > len(spectrum) * sparsity_constraint:
+        follow_distance /= 1.05
+        offset = maxp - follow_distance
     spectrum_p = np.choose(spectrum > offset,(0,spectrum-offset))
     spectrum_n = np.choose(spectrum <= offset,(0,offset-spectrum))
     spectrum = 10**(spectrum/10)
     power = np.log10(np.sum(spectrum))+2
     dpmp = 10*(power-2)-maxp
     data = np.ones(spectrum.shape) + scales[2] 
-    spectrum_p = scales[0]*power*np.tanh(spectrum_p/20) #(1-1/np.log10(spectrum_p+10))
+    spectrum_p = scales[0]*power*np.tanh(spectrum_p/follow_distance) #(1-1/np.log10(spectrum_p+10))
     spectrum_n = scales[1]*np.tanh(spectrum_n/50) #(1-1/np.log10(spectrum_n+10))
     
     if inv:
@@ -125,7 +130,7 @@ def get_colors(data, spectrum, log_index = False, n_octaves = 7, mode='cnt', out
     #print offset
     nonsparse = (spectrum > offset).sum()
     while nonsparse > len(spectrum) * sparsity_constraint:
-        offset = spmax - (spmax - offset) / 1.02
+        offset = spmax - (spmax - offset) / 1.05
         nonsparse = (spectrum > offset).sum()
     #    print nonsparse, offset
     colordata = np.choose(spectrum < offset, (colordata,colordata/10))
