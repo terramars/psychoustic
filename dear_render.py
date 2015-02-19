@@ -3,6 +3,12 @@ import os
 import shutil
 from dear_tools import *
 
+def cleanup():
+  quaternion.ctx.pop()
+
+import atexit
+atexit.register(cleanup)
+
 mode = sys.argv[1]
 sym = int(sys.argv[2])
 files=sys.argv[3:]
@@ -44,13 +50,13 @@ for fin in files:
     print 'rendered images'
 
     #p=os.popen('ffmpeg -y -r %d -sameq -i %simg%%05d.png -i %s %s'%(framerate,clean_outdir,clean_fin,clean_fout.rsplit('.',1)[0]+'_img.avi'))
-    p=os.popen('ffmpeg -y -r %d -qscale 0 -i %sconv%%05d.png -i %s %s'%(framerate,clean_outdir,clean_fin,clean_fout))
+    p=os.popen('ffmpeg -y -r %d -i %sconv%%05d.png -i %s -b:v 5000k -vcodec libx264 %s'%(framerate,clean_outdir,clean_fin,clean_fout))
     p.close()
     print '\n'
     print 'rendered video'
 
-    shutil.rmtree(outdir)
-    os.remove(wav)
+#    shutil.rmtree(outdir)
+#    os.remove(wav)
     print 'cleaned temp stuff'
 
 

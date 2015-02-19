@@ -1,15 +1,26 @@
 import numpy as np
 from scipy import fftpack
 from pyfft.cl import Plan
-import pyopencl as cl
-import pyopencl.array as cl_array
-from pyopencl import clmath
+#import pyopencl as cl
+#import pyopencl.array as cl_array
+#from pyopencl import clmath
 from scipy import sparse
 import time
 
-ctx = cl.create_some_context(interactive=False)
-queue = cl.CommandQueue(ctx)
+from pyfft.cuda import Plan
+import pycuda.driver as cuda
+from pycuda.tools import make_default_context
+import pycuda.gpuarray as gpuarray
+import pycuda.cumath as cumath
+
+#ctx = cl.create_some_context(interactive=False)
+#queue = cl.CommandQueue(ctx)
+
+cuda.init()
+ctx = make_default_context()
+stream = cuda.Stream()
 plan = None
+
 posr = None
 negr = None
 posa = None
@@ -87,14 +98,21 @@ def makeGaussian(size, fwhm = 3, center=None):
 gauss = 1-makeGaussian(24,8)*.8
 
 def gpu_fft(data,inverse=False):
-    global plan, ctx, queue
+    #global plan, ctx, queue
+    global plan, ctx, stream ##cuda
     if not plan:
         print 'building plan',data.shape
-        plan = Plan(data.shape, queue=queue,wait_for_finish = True)
-    #gpu_data = cl_array.to_device(ctx,queue,data.astype(np.complex64))
-    result = cl_array.zeros_like(data)
-    plan.execute(data.data, data_out = result.data, inverse=inverse)
-    #result = gpu_data.get()
+        plan = Plan(data.shape, stream = stream, wait_for_finish = True)
+        #plan = Plan(data.shape, queue=queue,wait_for_finish = True)
+    #gpu_data = cl_array.to_device(ctx,queue,data.astype(np.complex64)) OLD
+   
+    #result = cl_array.zeros_like(data)
+    result = gpuarray.zeros_like(data)
+
+    plan.execute(data, data_out = result, inverse=inverse)
+    
+    #result = gpu_data.get() OLD
+
     return result
 
 def fftshift_color(img):
@@ -173,16 +191,19 @@ def normalize_gpu(rgb,a):
     return img
 
 def sqrt_normalize_gpu(img):
-    global posr,negr,posa,nega
-    rgb = cl_array.to_device(queue,img[:,:,:3].copy())
-    a = cl_array.to_device(queue,img[:,:,3].copy())
+    global posr,negr,posa,nega,stream
+    #rgb = cl_array.to_device(queue,img[:,:,:3].copy())
+    #a = cl_array.to_device(queue,img[:,:,3].copy())
+    rgb = gpuarray.to_gpu(img[:,:,:3].copy())
+    a = gpuarray.to_gpu(img[:,:,3].copy())
+
     if not posr:
-        posr = cl_array.zeros_like(rgb) + 1 
-        negr = cl_array.zeros_like(rgb) - 1
-        posa = cl_array.zeros_like(a) + 1
-        nega = cl_array.zeros_like(a) - 1
-    rgb = clmath.sqrt(abs(rgb)) * cl_array.if_positive(rgb,posr,negr)
-    a = clmath.sqrt(abs(a)) * cl_array.if_positive(a,posa,nega)
+        posr = gpuarray.zeros_like(rgb) + 1 
+        negr = gpuarray.zeros_like(rgb) - 1
+        posa = gpuarray.zeros_like(a) + 1
+        nega = gpuarray.zeros_like(a) - 1
+    rgb = cumath.sqrt(abs(rgb),stream=stream) * gpuarray.if_positive(rgb,posr,negr,stream=stream)
+    a = cumath.sqrt(abs(a),stream=stream) * gpuarray.if_positive(a,posa,nega,stream=stream)
     return normalize_gpu(rgb,a)
 
 def decompose_h(r,i,j,k):
@@ -197,22 +218,20 @@ def decompose_h(r,i,j,k):
     return ha,hb
 
 def decompose_h_gpu(r,i,j,k):
-    global queue
-    ha = cl_array.zeros(queue,i.shape,dtype=np.complex64)
+    ha = gpuarray.zeros(i.shape,dtype=np.complex64)
     ha += r
     ha += i*1j
-    hb = cl_array.zeros(queue,i.shape,dtype=np.complex64)
+    hb = gpuarray.zeros(i.shape,dtype=np.complex64)
     hb += j
     hb += k*1j
     return ha,hb
 
 def decompose_lum_gpu(r,i,j,k):
-    global queue
-    ha = cl_array.zeros(queue,i.shape,dtype=np.complex64)
+    ha = gpuarray.zeros(i.shape,dtype=np.complex64)
     ha += r
     lum = (i+j+k)/float(np.sqrt(3.0))
     ha += lum*1j
-    hb = cl_array.zeros(queue,i.shape,dtype=np.complex64)
+    hb = gpuarray.zeros(i.shape,dtype=np.complex64)
     cr1 = (j-k)/float(np.sqrt(2.0))
     cr2 = (-2*i+j+k)/float(2.0)
     hb += cr1
@@ -345,16 +364,16 @@ def QCV2(fr,fi,fj,fk,hr,hi,hj,hk,mode=None):
     return recompose_lum_gpu(r,i,j,k)
 
 def reverse_gpu(arr):
-    return cl_array.to_device(queue,arr.get()[::-1].copy())
+    return gpuarray.to_gpu(arr.get()[::-1].copy())
 
 def AQCV2(r,i,j,k,mode=None):
     #t0=time.time()
     if r == 0:
         r = np.zeros(i.shape)
-    r = cl_array.to_device(queue,r.astype(np.complex64))
-    i = cl_array.to_device(queue,i.astype(np.complex64))
-    j = cl_array.to_device(queue,j.astype(np.complex64))
-    k = cl_array.to_device(queue,k.astype(np.complex64))
+    r = gpuarray.to_gpu(r.astype(np.complex64))
+    i = gpuarray.to_gpu(i.astype(np.complex64))
+    j = gpuarray.to_gpu(j.astype(np.complex64))
+    k = gpuarray.to_gpu(k.astype(np.complex64))
     fa,fb = decompose_lum_gpu(r,i,j,k)
     #print 'load and decompose',time.time()-t0
     #ffa = fftpack.fft2(fa)
@@ -399,5 +418,3 @@ def QCV1(fr,fi,fj,fk,hr,hi,hj,hk,mode=None):
     fh4r,fh4i,fh4j,fh4k = qmult(fbr,fbi,fbj,fbk,0,hi[::-1,:],0,hk[::-1,:])
     return QFT1(fh1r+fh2r+fh3r+fh4r,fh1i+fh2i+fh3i+fh4i,fh1j+fh2j+fh3j+fh4j,fh1k+fh2k+fh3k+fh4k,inv=1)
    
-
-
