@@ -275,8 +275,8 @@ def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1
         gram_kwargs['combine'] = True
         gram = auditory.GammatoneSpectrum(audio)
     i=0
-    print gram_args
-    print gram_kwargs
+    #print gram_args
+    #print gram_kwargs
     tqcv=0
     iso226_factors = None
     timesums=np.zeros(4)
