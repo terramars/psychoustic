@@ -3,17 +3,35 @@ import os
 import shutil
 from dear_tools import *
 
+
 def cleanup():
   quaternion.ctx.pop()
 
 import atexit
+
 atexit.register(cleanup)
 
-mode = sys.argv[1]
-sym = int(sys.argv[2])
-files=sys.argv[3:]
+
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--frequency-mode', type=str, choices=('dft', 'cnt', 'gmt'), default='cnt', help='algorithm to calculate frequency power, default cnt')
+parser.add_argument('--sym', type=int, default=6, help='number of symmetries in the kernel, default 6')
+parser.add_argument('files', type=str, nargs='*', help='input files to render')
+parser.add_argument('--resolution', '-r', type=int, default=512, help='kernel resolution (half final), default 512')
+parser.add_argument('--framerate', '-fr', type=int, default=30, help='framerate for video, default 30')
+parser.add_argument('--no-inv', action='store_true', default=False, help='use the outside facing kernel')
+parser.add_argument('--keep-frames', action='store_true', default=False, help='save image directory after run')
+args = parser.parse_args()
+
+
+mode = args.frequency_mode
+sym = args.sym
+files=args.files
 files.sort()
-#fout=sys.argv[2]
+resolution = args.resolution
+framerate = args.framerate
+inv = not args.no_inv
 
 replace_chars=[' ','(',')','&',';',"'",'"']
 
@@ -27,8 +45,8 @@ for fin in files:
     for char in replace_chars:
         clean_fin=clean_fin.replace(char,'\\'+char)
     clean_base=clean_fin.rsplit('.',1)[0]
-    fout=base+'_color_'+mode+'_'+str(sym)
-    clean_fout=clean_base+'_color_'+mode+'_'+str(sym)
+    fout=base  # +'_color_'+mode+'_'+str(sym)
+    clean_fout=clean_base  # +'_color_'+mode+'_'+str(sym)
     outdir=fout+'_pics/'
     clean_outdir=clean_fout+'_pics/'
     wav=fout+'.wav'
@@ -38,7 +56,6 @@ for fin in files:
     if os.path.isfile(fout):
         print 'already have ',fout,'skipping'
         continue
-    framerate=25
 
     if not os.path.isfile(wav):
         p=os.popen('ffmpeg -y -i %s %s'%(clean_fin,clean_wav))
@@ -46,17 +63,18 @@ for fin in files:
         print '\n'
         print 'made wav'
 
-    render_file(wav,outdir,shape=(512,512),sym=sym,framerate=framerate,inv=1,pad=True,mode=mode)
+    render_file(wav,outdir,shape=(resolution, resolution),sym=sym,framerate=framerate,inv=inv,pad=True,mode=mode)
     print 'rendered images'
 
     #p=os.popen('ffmpeg -y -r %d -sameq -i %simg%%05d.png -i %s %s'%(framerate,clean_outdir,clean_fin,clean_fout.rsplit('.',1)[0]+'_img.avi'))
-    p=os.popen('ffmpeg -y -r %d -i %sconv%%05d.png -i %s -b:v 5000k -vcodec libx264 -vf "transpose=1" %s'%(framerate,clean_outdir,clean_fin,clean_fout))
+    p=os.popen('ffmpeg -y -r %d -i %sconv%%05d.png -i %s -vcodec libx264 -crf 18 -preset veryslow -vf "transpose=1" %s'%(framerate,clean_outdir,clean_fin,clean_fout))
     p.close()
     print '\n'
     print 'rendered video'
 
-    shutil.rmtree(outdir)
-    os.remove(wav)
-    print 'cleaned temp stuff'
+    if not args.keep_frames:
+        shutil.rmtree(outdir)
+        os.remove(wav)
+    	print 'cleaned temp stuff'
 
 
