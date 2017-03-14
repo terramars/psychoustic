@@ -64,7 +64,7 @@ for fin in files:
         print '\n'
         print 'made wav'
 
-    render_file(wav,outdir,shape=(resolution, resolution),sym=sym,framerate=framerate,inv=inv,pad=True,mode=mode)
+    render_file(wav,outdir,shape=(resolution, resolution),sym=sym,framerate=framerate,inv=inv,pad=True,mode=mode,preserve_alpha=args.preserve_alpha)
     print 'rendered images'
 
     #p=os.popen('ffmpeg -y -r %d -sameq -i %simg%%05d.png -i %s %s'%(framerate,clean_outdir,clean_fin,clean_fout.rsplit('.',1)[0]+'_img.avi'))
