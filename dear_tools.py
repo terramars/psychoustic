@@ -195,7 +195,7 @@ def draw_spectrum(spectrum,shape,sym=6,inv=1,log_index=False,n_octaves=7,edge=Tr
     t3 = time.time()-t3
     return im, (t0,t1,t2,t3)
 
-def convolve_quaternion(im,pad=True):
+def convolve_quaternion(im, pad=True, preserve_alpha=False):
     if pad:
         im = quaternion.pad(im)
     #print 'pad',time.time()-t0
@@ -215,13 +215,15 @@ def convolve_quaternion(im,pad=True):
     im = quaternion.sqrt_normalize(im)
     #print 'normalize',time.time()-t0
     #t0=time.time()
+    if preserve_alpha:
+        return im * 255.1
     for i in range(3):
         im[:,:,i] = np.multiply(im[:,:,i],im[:,:,3])
     im *= 255.1
     #print 'alpha',time.time()-t0
     return im[:,:,:3]
 
-def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1, pad = True, mode = 'dft', params = {}):
+def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1, pad = True, mode = 'dft', preserve_alpha=False, params = {}):
     decoder = io.get_decoder(name = 'audioread')
     audio = decoder.Audio(fin)
     if not os.path.isdir(outdir):
@@ -295,7 +297,7 @@ def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1
         timesums += np.array(times)
         #imsave(outdir+'img%05d.png'%i,(im*255).astype(np.uint8))
         t0=time.time()
-        im = convolve_quaternion(im,pad)
+        im = convolve_quaternion(im, pad, preserve_alpha)
         tqcv += time.time()-t0
         imsave(outdir+'conv%05d.png'%i,im.astype(np.uint8))
         if i%100==0:

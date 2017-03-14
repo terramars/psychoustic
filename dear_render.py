@@ -22,6 +22,7 @@ parser.add_argument('--resolution', '-r', type=int, default=512, help='kernel re
 parser.add_argument('--framerate', '-fr', type=int, default=30, help='framerate for video, default 30')
 parser.add_argument('--no-inv', action='store_true', default=False, help='use the outside facing kernel')
 parser.add_argument('--keep-frames', action='store_true', default=False, help='save image directory after run')
+parser.add_argument('--preserve-alpha', action='store_true', default=False, help='save the images with alpha')
 args = parser.parse_args()
 
 
