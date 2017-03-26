@@ -1,0 +1,4 @@
+dear/build/
+dear/dist/
+dear/dear.egg-info/
+*.pyc
