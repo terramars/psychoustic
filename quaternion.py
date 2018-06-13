@@ -392,6 +392,7 @@ def AQCV2(r,i,j,k,mode=None):
     #t0=time.time()
     out = recompose_lum_gpu(r,i,j,k)
     #print 'recompose',time.time()-t0
+    del r, i, j, k, fa, fb, ffa, ffb, ffar, ffai, ffaj, ffak, ffbr, ffbi, ffbj, ffbk
     return out
 
 def QCV3(fr,fi,fj,fk,hr,hi,hj,hk,mode=None):
