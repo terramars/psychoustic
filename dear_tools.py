@@ -229,7 +229,8 @@ def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1
     if not os.path.isdir(outdir):
         os.mkdir(outdir)
     fs = audio.samplerate
-    print 'fs: %d Hz, Duration: %d sec, Frames: %d'%(audio.samplerate,audio.duration,audio.duration*framerate)
+    nframes = audio.duration * framerate
+    print 'fs: %d Hz, Duration: %d sec, Frames: %d'%(audio.samplerate,audio.duration,nframes)
     gram = None
     log_index = True
     n_octaves = None
@@ -301,7 +302,10 @@ def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1
         tqcv += time.time()-t0
         imsave(outdir+'conv%05d.png'%i,im.astype(np.uint8))
         if i%100==0:
-            print i,tqcv+timesums.sum(),tqcv,timesums
+            ttot = tqcv + timesums.sum()
+            pct = i / nframes
+            eta = ttot / pct - ttot
+            print '%d %4.4f%% %6.2fs elapsed %6.2fs eta %6.2f convolution %s timing' % (i, 100.0 * pct, ttot, eta, tqcv, str(timesums))
         i+=1
     print 'done rendering',i,tqcv+timesums.sum(),tqcv,timesums
     return 
