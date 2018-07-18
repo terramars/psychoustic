@@ -52,8 +52,8 @@ for fin in files:
     clean_outdir=clean_fout+'_pics/'
     wav=fout+'.wav'
     clean_wav=clean_fout+'.wav'
-    fout+='.avi'
-    clean_fout+='.avi'
+    fout+='.mov'
+    clean_fout+='.mov'
     if os.path.isfile(fout):
         print 'already have ',fout,'skipping'
         continue
@@ -68,7 +68,8 @@ for fin in files:
     print 'rendered images'
 
     #p=os.popen('ffmpeg -y -r %d -sameq -i %simg%%05d.png -i %s %s'%(framerate,clean_outdir,clean_fin,clean_fout.rsplit('.',1)[0]+'_img.avi'))
-    p=os.popen('ffmpeg -y -framerate %d -i %sconv%%05d.png -i %s -vcodec libx264 -crf 18 -preset slow -vf "transpose=1" -r %d %s'%(framerate,clean_outdir,clean_fin,framerate,clean_fout))
+    #p=os.popen('ffmpeg -y -framerate %d -i %sconv%%05d.png -i %s -vcodec libx264 -crf 18 -preset slow -vf "transpose=1" -r %d %s'%(framerate,clean_outdir,clean_fin,framerate,clean_fout))
+    p=os.popen('ffmpeg -y -framerate %d -i %sconv%%05d.png -i %s -vcodec libx264 -pix_fmt yuv420p -acodec copy -b:v 8000k -f mov -vf "transpose=1" -r %d %s'%(framerate,clean_outdir,clean_fin,framerate,clean_fout))
     p.close()
     print '\n'
     print 'rendered video'
