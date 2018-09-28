@@ -23,10 +23,12 @@ parser.add_argument('--framerate', '-fr', type=int, default=30, help='framerate 
 parser.add_argument('--no-inv', action='store_true', default=False, help='use the outside facing kernel')
 parser.add_argument('--keep-frames', action='store_true', default=False, help='save image directory after run')
 parser.add_argument('--preserve-alpha', action='store_true', default=False, help='save the images with alpha')
+parser.add_argument('--path-char', type=str, choices=('/','\\'), default='/')
 args = parser.parse_args()
 
 
 mode = args.frequency_mode
+path_char = args.path_char
 sym = args.sym
 files=args.files
 files.sort()
@@ -43,13 +45,14 @@ if mode not in ['dft','cnt','gmt']:
 for fin in files:
     base=fin.rsplit('.',1)[0]
     clean_fin=fin
-    for char in replace_chars:
-        clean_fin=clean_fin.replace(char,'\\'+char)
+    if path_char == '/':
+        for char in replace_chars:
+            clean_fin=clean_fin.replace(char,'\\'+char)
     clean_base=clean_fin.rsplit('.',1)[0]
     fout=base  # +'_color_'+mode+'_'+str(sym)
     clean_fout=clean_base  # +'_color_'+mode+'_'+str(sym)
-    outdir=fout+'_pics/'
-    clean_outdir=clean_fout+'_pics/'
+    outdir=fout+'_pics' + path_char
+    clean_outdir=clean_fout+'_pics' + path_char
     wav=fout+'.wav'
     clean_wav=clean_fout+'.wav'
     fout+='.mov'
@@ -59,7 +62,9 @@ for fin in files:
         continue
 
     if not os.path.isfile(wav):
-        p=os.popen('ffmpeg -y -i %s %s'%(clean_fin,clean_wav))
+        cmd = 'ffmpeg -y -i "%s" "%s"'%(clean_fin,clean_wav)
+        print cmd
+        p=os.popen(cmd)
         p.close()
         print '\n'
         print 'made wav'
@@ -77,6 +82,6 @@ for fin in files:
     if not args.keep_frames:
         shutil.rmtree(outdir)
         os.remove(wav)
-    	print 'cleaned temp stuff'
+        print 'cleaned temp stuff'
 
 

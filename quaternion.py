@@ -1,6 +1,6 @@
 import numpy as np
 from scipy import fftpack
-from pyfft.cl import Plan
+#from pyfft.cl import Plan
 #import pyopencl as cl
 #import pyopencl.array as cl_array
 #from pyopencl import clmath
