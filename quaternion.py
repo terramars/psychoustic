@@ -1,20 +1,14 @@
 import numpy as np
 from scipy import fftpack
-#from pyfft.cl import Plan
-#import pyopencl as cl
-#import pyopencl.array as cl_array
-#from pyopencl import clmath
 from scipy import sparse
 import time
 
-from pyfft.cuda import Plan
+from pyfft.cuda import Plan  # TODO deprecate pyfft replace with reikna
 import pycuda.driver as cuda
 from pycuda.tools import make_default_context
 import pycuda.gpuarray as gpuarray
 import pycuda.cumath as cumath
 
-#ctx = cl.create_some_context(interactive=False)
-#queue = cl.CommandQueue(ctx)
 
 cuda.init()
 ctx = make_default_context()
@@ -61,7 +55,6 @@ def sparse_quaternion_convolution(im,tmp=None):
     I,K = np.meshgrid(r,r)
     J,L = np.meshgrid(c,c)
     print I.shape
-    #C = index_color_matrix[im[I,J],im[K,L]]
     i1 = im[I,J]
     i2 = im[K,L]
     print 'grids',time.time()-t0
@@ -98,21 +91,15 @@ def makeGaussian(size, fwhm = 3, center=None):
 gauss = 1-makeGaussian(24,8)*.8
 
 def gpu_fft(data,inverse=False):
-    #global plan, ctx, queue
     global plan, ctx, stream ##cuda
     if not plan:
         print 'building plan',data.shape
         plan = Plan(data.shape, stream = stream, wait_for_finish = True)
-        #plan = Plan(data.shape, queue=queue,wait_for_finish = True)
-    #gpu_data = cl_array.to_device(ctx,queue,data.astype(np.complex64)) OLD
-   
-    #result = cl_array.zeros_like(data)
+
     result = gpuarray.zeros_like(data)
 
     plan.execute(data, data_out = result, inverse=inverse)
     
-    #result = gpu_data.get() OLD
-
     return result
 
 def fftshift_color(img):
@@ -192,8 +179,6 @@ def normalize_gpu(rgb,a):
 
 def sqrt_normalize_gpu(img):
     global posr,negr,posa,nega,stream
-    #rgb = cl_array.to_device(queue,img[:,:,:3].copy())
-    #a = cl_array.to_device(queue,img[:,:,3].copy())
     rgb = gpuarray.to_gpu(img[:,:,:3].copy())
     a = gpuarray.to_gpu(img[:,:,3].copy())
 
@@ -332,8 +317,6 @@ def QFT2(r,i,j,k,inv=0,lum=1):
         ha,hb = decompose_lum_gpu(r,i,j,k)
     else:
         ha,hb = decompose_h_gpu(r,i,j,k)
-    #fha = fftpack.fft2(ha)
-    #fhb = fftpack.fft2(hb)
     fha = gpu_fft(ha)
     fhb = gpu_fft(hb)
     if inv:
@@ -376,8 +359,6 @@ def AQCV2(r,i,j,k,mode=None):
     k = gpuarray.to_gpu(k.astype(np.complex64))
     fa,fb = decompose_lum_gpu(r,i,j,k)
     #print 'load and decompose',time.time()-t0
-    #ffa = fftpack.fft2(fa)
-    #ffb = fftpack.fft2(fb)
     #t0=time.time()
     ffa = gpu_fft(fa)
     ffb = gpu_fft(fb)

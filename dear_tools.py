@@ -23,6 +23,7 @@ def init_palette(n = 64):
     palette = quant[color_levels]
     return palette
 
+# this function converts the spectrum into dimensionless magnitude units that will be drawn in the circle projection
 def normalize_spectrum(spectrum,min_offset = -25,max_offset = -5,follow_distance = 20,inv = 1,scales = (10.0,5.0,50.0),n_octaves=7,mode='cnt'):
     maxp = spectrum.max()
     offset = maxp - follow_distance
@@ -223,6 +224,7 @@ def convolve_quaternion(im, pad=True, preserve_alpha=False):
     #print 'alpha',time.time()-t0
     return im[:,:,:3]
 
+# this is the actual function that steps through the audio file and generates each frame 
 def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1, pad = True, mode = 'dft', preserve_alpha=False, params = {}):
     decoder = io.get_decoder(name = 'audioread')
     audio = decoder.Audio(fin)
@@ -277,36 +279,39 @@ def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1
         gram_kwargs['freq_max'] = cqt.A0 * 2**n_octaves
         gram_kwargs['combine'] = True
         gram = auditory.GammatoneSpectrum(audio)
-    i=0
+    i = 0
+    j = 0
     #print gram_args
     #print gram_kwargs
-    tqcv=0
+    tqcv = 0
     iso226_factors = None
     timesums=np.zeros(4)
     for spectrum in gram.walk(*gram_args,**gram_kwargs):
         iso_init = isinstance(iso226_factors, np.ndarray)
+        i += 1
         if hasattr(gram, 'fqs') and not iso_init:
             iso226_factors = np.array(map(iso,gram.fqs))
             iso226_factors = 10 ** (iso226_factors / 10)
             iso226_factors = 1 / iso226_factors
         if os.path.isfile(outdir+'conv%05d.png'%i):
-            i+=1
             continue
         if iso_init:
             spectrum = np.multiply(spectrum,iso226_factors)
+        j += 1
         im,times = draw_spectrum(spectrum,shape,sym,inv,log_index,n_octaves,mode=mode)
         timesums += np.array(times)
-        #imsave(outdir+'img%05d.png'%i,(im*255).astype(np.uint8))
+        imsave(outdir+'img%05d.png'%i,(im*255).astype(np.uint8)) # this is for saving the kernel images
         t0=time.time()
         im = convolve_quaternion(im, pad, preserve_alpha)
         tqcv += time.time()-t0
         imsave(outdir+'conv%05d.png'%i,im.astype(np.uint8))
         if i%100==0:
             ttot = tqcv + timesums.sum()
+            actual_nframes = nframes - (i - j)
             pct = i / nframes
-            eta = ttot / pct - ttot
+            pct_diff = j / actual_nframes
+            eta = ttot / pct_diff - ttot
             print '%d %4.4f%% %6.2fs elapsed %6.2fs eta %6.2f convolution %s timing' % (i, 100.0 * pct, ttot, eta, tqcv, str(timesums))
-        i+=1
     print 'done rendering',i,tqcv+timesums.sum(),tqcv,timesums
     return 
 

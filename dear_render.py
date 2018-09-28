@@ -19,11 +19,11 @@ parser.add_argument('--frequency-mode', type=str, choices=('dft', 'cnt', 'gmt'),
 parser.add_argument('--sym', type=int, default=6, help='number of symmetries in the kernel, default 6')
 parser.add_argument('files', type=str, nargs='*', help='input files to render')
 parser.add_argument('--resolution', '-r', type=int, default=512, help='kernel resolution (half final), default 512')
-parser.add_argument('--framerate', '-fr', type=int, default=30, help='framerate for video, default 30')
+parser.add_argument('--framerate', '-fr', type=int, default=24, help='framerate for video, default 24')
 parser.add_argument('--no-inv', action='store_true', default=False, help='use the outside facing kernel')
 parser.add_argument('--keep-frames', action='store_true', default=False, help='save image directory after run')
 parser.add_argument('--preserve-alpha', action='store_true', default=False, help='save the images with alpha')
-parser.add_argument('--path-char', type=str, choices=('/','\\'), default='/')
+parser.add_argument('--path-char', type=str, choices=('/','\\'), default='/', help='change this to "\" on windows')
 args = parser.parse_args()
 
 
