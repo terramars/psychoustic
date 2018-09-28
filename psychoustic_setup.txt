@@ -1,0 +1,26 @@
+python 2
+
+cuda / nvcc - 9.0 is the one running
+
+pycuda (in addition to requirements.txt)
+
+
+*install:
+vc2015 
+make  sure to include (custom install) c++
+
+
+*add this to path
+C:\Program Files (x86)\VC\bin\cl.exe
+
+
+from project directory:
+pip install -r requirements.txt
+pip install pycuda 
+cd dear/
+python setup.py install
+
+from project directory:
+python dear_render.py --path-char='\' "\path\to\music file 1.mp3" "music file...n"
+
+relevant python files : dear_render.py, dear_tools.py, quaternion.py 
