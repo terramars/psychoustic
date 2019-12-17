@@ -25,6 +25,7 @@ parser.add_argument('--keep-frames', action='store_true', default=False, help='s
 parser.add_argument('--preserve-alpha', action='store_true', default=False, help='save the images with alpha')
 parser.add_argument('--path-char', type=str, choices=('/','\\'), default='/', help='change this to "\" on windows')
 parser.add_argument('--no-color', action='store_true', default=False, help='single channel')
+parser.add_argument('--edge-filter', action='store_true', default=False, help='enable the kernel edge filter')
 args = parser.parse_args()
 
 
@@ -36,6 +37,7 @@ files.sort()
 resolution = args.resolution
 framerate = args.framerate
 inv = not args.no_inv
+edge_filter = args.edge_filter
 no_color = args.no_color
 
 replace_chars=[' ','(',')','&',';',"'",'"']
@@ -71,7 +73,7 @@ for fin in files:
         print '\n'
         print 'made wav'
 
-    render_file(wav,outdir,shape=(resolution, resolution),sym=sym,framerate=framerate,inv=inv,pad=True,mode=mode,preserve_alpha=args.preserve_alpha,no_color=no_color)
+    render_file(wav,outdir,shape=(resolution, resolution),sym=sym,framerate=framerate,inv=inv,pad=True,mode=mode,preserve_alpha=args.preserve_alpha,no_color=no_color, edge_filter=edge_filter)
     print 'rendered images'
 
     #p=os.popen('ffmpeg -y -r %d -sameq -i %simg%%05d.png -i %s %s'%(framerate,clean_outdir,clean_fin,clean_fout.rsplit('.',1)[0]+'_img.avi'))

@@ -245,7 +245,7 @@ def convolve_quaternion(im, pad=True, preserve_alpha=False, no_color=False):
     return im[:,:,:3]
 
 # this is the actual function that steps through the audio file and generates each frame 
-def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1, pad = True, mode = 'dft', preserve_alpha=False, params = {}, no_color=False):
+def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1, pad = True, mode = 'dft', preserve_alpha=False, params = {}, no_color=False, edge_filter=True):
     decoder = io.get_decoder(name = 'audioread')
     audio = decoder.Audio(fin)
     if not os.path.isdir(outdir):
@@ -318,7 +318,7 @@ def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1
         if iso_init:
             spectrum = np.multiply(spectrum,iso226_factors)
         j += 1
-        im,times = draw_spectrum(spectrum,shape,sym,inv,log_index,n_octaves,mode=mode,no_color=no_color)
+        im,times = draw_spectrum(spectrum,shape,sym,inv,log_index,n_octaves,mode=mode,no_color=no_color,edge=edge_filter)
         timesums += np.array(times)
         imsave(outdir+'img%05d.png'%i,(im*255).astype(np.uint8)) # this is for saving the kernel images
         t0=time.time()
