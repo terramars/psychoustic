@@ -24,6 +24,7 @@ parser.add_argument('--no-inv', action='store_true', default=False, help='use th
 parser.add_argument('--keep-frames', action='store_true', default=False, help='save image directory after run')
 parser.add_argument('--preserve-alpha', action='store_true', default=False, help='save the images with alpha')
 parser.add_argument('--path-char', type=str, choices=('/','\\'), default='/', help='change this to "\" on windows')
+parser.add_argument('--no-color', action='store_true', default=False, help='single channel')
 args = parser.parse_args()
 
 
@@ -35,6 +36,7 @@ files.sort()
 resolution = args.resolution
 framerate = args.framerate
 inv = not args.no_inv
+no_color = args.no_color
 
 replace_chars=[' ','(',')','&',';',"'",'"']
 
@@ -45,9 +47,9 @@ if mode not in ['dft','cnt','gmt']:
 for fin in files:
     base=fin.rsplit('.',1)[0]
     clean_fin=fin
-    if path_char == '/':
-        for char in replace_chars:
-            clean_fin=clean_fin.replace(char,'\\'+char)
+    #if path_char == '/':
+    #    for char in replace_chars:
+    #        clean_fin=clean_fin.replace(char,'\\'+char)
     clean_base=clean_fin.rsplit('.',1)[0]
     fout=base  # +'_color_'+mode+'_'+str(sym)
     clean_fout=clean_base  # +'_color_'+mode+'_'+str(sym)
@@ -69,7 +71,7 @@ for fin in files:
         print '\n'
         print 'made wav'
 
-    render_file(wav,outdir,shape=(resolution, resolution),sym=sym,framerate=framerate,inv=inv,pad=True,mode=mode,preserve_alpha=args.preserve_alpha)
+    render_file(wav,outdir,shape=(resolution, resolution),sym=sym,framerate=framerate,inv=inv,pad=True,mode=mode,preserve_alpha=args.preserve_alpha,no_color=no_color)
     print 'rendered images'
 
     #p=os.popen('ffmpeg -y -r %d -sameq -i %simg%%05d.png -i %s %s'%(framerate,clean_outdir,clean_fin,clean_fout.rsplit('.',1)[0]+'_img.avi'))

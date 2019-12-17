@@ -154,6 +154,9 @@ def log_normalize(img):
     return normalize(img)
 
 def sqrt_normalize(img):
+    if len(img.shape) == 2:
+        img = np.sqrt(img)
+        return normalize(img)
     norm = np.sqrt(np.sqrt(np.sum(np.multiply(img[:,:,:3],img[:,:,:3]),axis=-1)))
     norm += 1e-10
     img[:,:,0] /= norm
@@ -348,6 +351,12 @@ def QCV2(fr,fi,fj,fk,hr,hi,hj,hk,mode=None):
 
 def reverse_gpu(arr):
     return gpuarray.to_gpu(arr.get()[::-1].copy())
+
+def ACV(im):
+    im = gpuarray.to_gpu(im.astype(np.complex64))
+    fft = gpu_fft(im)
+    cvfft = fft*fft
+    return gpu_fft(cvfft, inverse=True).get()[::-1]
 
 def AQCV2(r,i,j,k,mode=None):
     #t0=time.time()

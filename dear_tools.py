@@ -157,27 +157,40 @@ def draw_sparse(xs,ys,colors,shape):
         draw.line( ( (interpxs[i],interpys[i]), (xs[i,1],ys[i,1]) ),fill = tuple(colors[i%n]) )
     return np.array(im).astype(np.float32)/255.0
 
-def draw_data(xs, ys, colors, shape):
-    im = Image.new('RGB',shape)
+def draw_data(xs, ys, colors, shape, no_color=False):
+    if not no_color:
+        im = Image.new('RGB',shape)
+    else:
+        im = Image.new('L', shape)
     draw = ImageDraw.Draw(im)
     n = len(colors)
     for i in range(xs.shape[0]):
         draw.line( ( (xs[i,0],ys[i,0]), (xs[i,1],ys[i,1]) ),fill = tuple(colors[i%n]) )
     return np.array(im).astype(np.float32)/255.0
 
-def edge_filter(im):
+def edge_filter(im, no_color=False):
     filt = np.ones((3,3))
     filt[1,1]=0
-    edge = signal.convolve2d( np.choose(im.sum(axis=2)>0,(0,1)), filt, 'same')
+    if not no_color:
+        imchoose = im.sum(axis=2)>0
+    else:
+        imchoose = im>0
+    edge = signal.convolve2d( np.choose(imchoose,(0,1)), filt, 'same')
     edge = edge==8
-    for i in range(im.shape[2]):
-        im[:,:,i] = np.choose(edge,(im[:,:,i],0))
+    if not no_color:
+        for i in range(im.shape[2]):
+            im[:,:,i] = np.choose(edge,(im[:,:,i],0))
+    else:
+        im = np.choose(edge, (im,0))
     return im
 
-def draw_spectrum(spectrum,shape,sym=6,inv=1,log_index=False,n_octaves=7,edge=True,mode='cnt'):
+def draw_spectrum(spectrum,shape,sym=6,inv=1,log_index=False,n_octaves=7,edge=True,mode='cnt',no_color=False):
     spectrum = 10*np.log10(spectrum+1e-160)
     if spectrum.max() < -159:
-        im = Image.new('RGB',shape)
+        if not no_color:
+            im = Image.new('RGB',shape)
+        else:
+            im = Image.new('L', shape)
         return np.array(im).astype(np.float32),(0,0,0,0)
     t0=time.time()
     data = normalize_spectrum(spectrum,inv=inv,n_octaves=n_octaves,mode=mode)
@@ -188,20 +201,27 @@ def draw_spectrum(spectrum,shape,sym=6,inv=1,log_index=False,n_octaves=7,edge=Tr
     t1 = time.time()-t1
     t2 = time.time()
     colors = get_colors(data, spectrum, log_index, n_octaves, mode)
+    if no_color:
+        colors = [(np.sqrt(sum(j**2 for j in i)).astype(np.uint8),) for i in colors]
     t2 = time.time()-t2
     t3 = time.time()
-    im = draw_data(xs,ys,colors,shape)
+    im = draw_data(xs,ys,colors,shape,no_color)
     if edge:
-        im = edge_filter(im)
+        im = edge_filter(im, no_color)
     t3 = time.time()-t3
     return im, (t0,t1,t2,t3)
 
-def convolve_quaternion(im, pad=True, preserve_alpha=False):
+def convolve_quaternion(im, pad=True, preserve_alpha=False, no_color=False):
     if pad:
         im = quaternion.pad(im)
     #print 'pad',time.time()-t0
     #t0=time.time()
-    
+    if no_color:
+        im = quaternion.ACV(im)
+        im.flatten()[im.argmax()]=0
+        im = quaternion.fftshift_color(im)
+        im = quaternion.sqrt_normalize(im)
+        return im * 255.1
     r,i,j,k = quaternion.AQCV2(0, im[:,:,0], im[:,:,1], im[:,:,2])
     #print 'aqcv',time.time()-t0
     #t0=time.time()
@@ -225,7 +245,7 @@ def convolve_quaternion(im, pad=True, preserve_alpha=False):
     return im[:,:,:3]
 
 # this is the actual function that steps through the audio file and generates each frame 
-def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1, pad = True, mode = 'dft', preserve_alpha=False, params = {}):
+def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1, pad = True, mode = 'dft', preserve_alpha=False, params = {}, no_color=False):
     decoder = io.get_decoder(name = 'audioread')
     audio = decoder.Audio(fin)
     if not os.path.isdir(outdir):
@@ -298,11 +318,11 @@ def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1
         if iso_init:
             spectrum = np.multiply(spectrum,iso226_factors)
         j += 1
-        im,times = draw_spectrum(spectrum,shape,sym,inv,log_index,n_octaves,mode=mode)
+        im,times = draw_spectrum(spectrum,shape,sym,inv,log_index,n_octaves,mode=mode,no_color=no_color)
         timesums += np.array(times)
         imsave(outdir+'img%05d.png'%i,(im*255).astype(np.uint8)) # this is for saving the kernel images
         t0=time.time()
-        im = convolve_quaternion(im, pad, preserve_alpha)
+        im = convolve_quaternion(im, pad, preserve_alpha, no_color=no_color)
         tqcv += time.time()-t0
         imsave(outdir+'conv%05d.png'%i,im.astype(np.uint8))
         if i%100==0:
