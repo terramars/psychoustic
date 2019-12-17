@@ -1,4 +1,4 @@
-starflower
+Psychoustic
 ==========
 
-Synasthesic visualizer based on STFT and autoconvolution.
+Synasthesic visualizer based on constant-n wavelet transform, phons, and quaternion autoconvolution.  
