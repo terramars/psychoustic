@@ -3,15 +3,6 @@ import os
 import shutil
 from dear_tools import *
 
-
-def cleanup():
-  quaternion.ctx.pop()
-
-import atexit
-
-atexit.register(cleanup)
-
-
 import argparse
 
 parser = argparse.ArgumentParser()
@@ -43,7 +34,7 @@ no_color = args.no_color
 replace_chars=[' ','(',')','&',';',"'",'"']
 
 if mode not in ['dft','cnt','gmt']:
-    print 'invalid mode',mode
+    print('invalid mode',mode)
     sys.exit(1)
 
 for fin in files:
@@ -62,32 +53,32 @@ for fin in files:
     fout+='.mov'
     clean_fout+='.mov'
     if os.path.isfile(fout):
-        print 'already have ',fout,'skipping'
+        print('already have ',fout,'skipping')
         continue
 
     if not os.path.isfile(wav):
         cmd = 'ffmpeg -y -i "%s" "%s"'%(clean_fin,clean_wav)
-        print cmd
+        print(cmd)
         p=os.popen(cmd)
         p.close()
-        print '\n'
-        print 'made wav'
+        print('\n')
+        print('made wav')
 
     render_file(wav,outdir,shape=(resolution, resolution),sym=sym,framerate=framerate,inv=inv,pad=True,mode=mode,preserve_alpha=args.preserve_alpha,no_color=no_color, edge_filter=edge_filter)
-    print 'rendered images'
+    print('rendered images')
 
     #p=os.popen('ffmpeg -y -r %d -sameq -i %simg%%05d.png -i %s %s'%(framerate,clean_outdir,clean_fin,clean_fout.rsplit('.',1)[0]+'_img.avi'))
     #p=os.popen('ffmpeg -y -framerate %d -i %sconv%%05d.png -i %s -vcodec libx264 -crf 18 -preset slow -vf "transpose=1" -r %d %s'%(framerate,clean_outdir,clean_fin,framerate,clean_fout))
-    cmd = 'ffmpeg -y -framerate %d -i "%sconv%%05d.png" -i "%s" -vcodec libx264 -pix_fmt yuv420p -acodec copy -b:v 8000k -f mov -vf "transpose=1" -r %d "%s"'%(framerate,clean_outdir,clean_fin,framerate,clean_fout)
-    print cmd
+    cmd = 'ffmpeg -y -framerate %d -i "%sconv%%05d.png" -i "%s" -vcodec libx264 -pix_fmt yuv420p -acodec copy -b:v 16000k -f mov -vf "transpose=1" -r %d "%s"'%(framerate,clean_outdir,clean_fin,framerate,clean_fout)
+    print(cmd)
     p=os.popen(cmd)
     p.close()
-    print '\n'
-    print 'rendered video'
+    print('\n')
+    print('rendered video')
 
     if not args.keep_frames and os.path.isfile(clean_fout):
         shutil.rmtree(outdir)
         os.remove(wav)
-        print 'cleaned temp stuff'
+        print('cleaned temp stuff')
 
 

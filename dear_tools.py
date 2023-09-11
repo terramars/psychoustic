@@ -5,7 +5,7 @@ import numpy as np
 from PIL import ImageDraw, Image
 import quaternion
 from scipy import signal
-from scipy.misc import imsave
+import imageio
 import os
 import time
 from iso226 import *
@@ -52,7 +52,7 @@ def normalize_spectrum(spectrum,min_offset = -25,max_offset = -5,follow_distance
         data += spectrum_p
         data -= spectrum_n
    
-    print offset, power, maxp, dpmp, data.max(), data.min()
+    print(offset, power, maxp, dpmp, data.max(), data.min())
     data /= data.max()
     return data
 
@@ -225,9 +225,12 @@ def convolve_quaternion(im, pad=True, preserve_alpha=False, no_color=False):
     r,i,j,k = quaternion.AQCV2(0, im[:,:,0], im[:,:,1], im[:,:,2])
     #print 'aqcv',time.time()-t0
     #t0=time.time()
-    maxval = r.argmax()
-    for n in (r,i,j,k):
-        n.flatten()[maxval] = 0
+    maxval = np.unravel_index(r.argmax(), r.shape)
+    r = r.at[maxval].set(0)
+    i = i.at[maxval].set(0)
+    j = j.at[maxval].set(0)
+    k = k.at[maxval].set(0)
+
     #print 'zero',time.time()-t0
     #t0=time.time()
     im = quaternion.create_image(r,i,j,k)
@@ -252,7 +255,7 @@ def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1
         os.mkdir(outdir)
     fs = audio.samplerate
     nframes = audio.duration * framerate
-    print 'fs: %d Hz, Duration: %d sec, Frames: %d'%(audio.samplerate,audio.duration,nframes)
+    print('fs: %d Hz, Duration: %d sec, Frames: %d'%(audio.samplerate,audio.duration,nframes))
     gram = None
     log_index = True
     n_octaves = None
@@ -310,7 +313,8 @@ def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1
         iso_init = isinstance(iso226_factors, np.ndarray)
         i += 1
         if hasattr(gram, 'fqs') and not iso_init:
-            iso226_factors = np.array(map(iso,gram.fqs))
+            mapped = list(map(iso,gram.fqs))
+            iso226_factors = np.array(mapped)
             iso226_factors = 10 ** (iso226_factors / 10)
             iso226_factors = 1 / iso226_factors
         if os.path.isfile(outdir+'conv%05d.png'%i):
@@ -320,19 +324,19 @@ def render_file(fin, outdir, shape = (512,512), framerate = 25, sym = 6, inv = 1
         j += 1
         im,times = draw_spectrum(spectrum,shape,sym,inv,log_index,n_octaves,mode=mode,no_color=no_color,edge=edge_filter)
         timesums += np.array(times)
-        imsave(outdir+'img%05d.png'%i,(im*255).astype(np.uint8)) # this is for saving the kernel images
+        imageio.imwrite(outdir+'img%05d.png'%i,(im*255).astype(np.uint8)) # this is for saving the kernel images
         t0=time.time()
         im = convolve_quaternion(im, pad, preserve_alpha, no_color=no_color)
         tqcv += time.time()-t0
-        imsave(outdir+'conv%05d.png'%i,im.astype(np.uint8))
+        imageio.imwrite(outdir+'conv%05d.png'%i,im.astype(np.uint8))
         if i%100==0:
             ttot = tqcv + timesums.sum()
             actual_nframes = nframes - (i - j)
             pct = i / nframes
             pct_diff = j / actual_nframes
             eta = ttot / pct_diff - ttot
-            print '%d %4.4f%% %6.2fs elapsed %6.2fs eta %6.2f convolution %s timing' % (i, 100.0 * pct, ttot, eta, tqcv, str(timesums))
-    print 'done rendering',i,tqcv+timesums.sum(),tqcv,timesums
+            print('%d %4.4f%% %6.2fs elapsed %6.2fs eta %6.2f convolution %s timing' % (i, 100.0 * pct, ttot, eta, tqcv, str(timesums)))
+    print('done rendering',i,tqcv+timesums.sum(),tqcv,timesums)
     return 
 
 

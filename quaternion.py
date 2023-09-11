@@ -1,19 +1,8 @@
-import numpy as np
+import jax.numpy as np
+import numpy as nnp
 from scipy import fftpack
 from scipy import sparse
 import time
-
-from pyfft.cuda import Plan  # TODO deprecate pyfft replace with reikna
-import pycuda.driver as cuda
-from pycuda.tools import make_default_context
-import pycuda.gpuarray as gpuarray
-import pycuda.cumath as cumath
-
-
-cuda.init()
-ctx = make_default_context()
-stream = cuda.Stream()
-plan = None
 
 posr = None
 negr = None
@@ -42,32 +31,32 @@ def sparse_quaternion_convolution(im,tmp=None):
     global index_color_matrix
     if tmp:
         index_color_matrix = tmp
-    print im.shape
+    #print(im.shape)
     t0=time.time()
     sim = sparse.dok_matrix(im.sum(axis=2))
-    print 'sim',time.time()-t0
+    #print 'sim',time.time()-t0
     t0=time.time()
     m,n,_ = im.shape
     keys = sim.keys()
     r = [i[0] for i in keys]
     c = [i[1] for i in keys]
-    print 'nkeys',len(r)
+    #print 'nkeys',len(r)
     I,K = np.meshgrid(r,r)
     J,L = np.meshgrid(c,c)
-    print I.shape
+    #print I.shape
     i1 = im[I,J]
     i2 = im[K,L]
-    print 'grids',time.time()-t0
+    #print 'grids',time.time()-t0
     t0=time.time()
     C = np.concatenate([i[:,:,np.newaxis] for i in qmult(0,i1[:,:,0],i1[:,:,1],i1[:,:,2],0,i2[:,:,0],i2[:,:,1],i2[:,:,2])],axis = 2)
-    print 'C',time.time()-t0
+    #print 'C',time.time()-t0
     t0=time.time()
     rows = (I+K).flatten()
     cols = (J+L).flatten()
     out = np.zeros((m*2-1,n*2-1,4),dtype=np.float32)
     for i in range(im.shape[2]):
         out[:,:,i] = sparse.coo_matrix((C[:,:,i].flatten(),(rows,cols)),shape=out.shape[:2]).toarray()
-    print 'done',time.time()-t0
+    #print 'done',time.time()-t0
     return out
 
 def makeGaussian(size, fwhm = 3, center=None):
@@ -90,18 +79,6 @@ def makeGaussian(size, fwhm = 3, center=None):
 
 gauss = 1-makeGaussian(24,8)*.8
 
-def gpu_fft(data,inverse=False):
-    global plan, ctx, stream ##cuda
-    if not plan:
-        print 'building plan',data.shape
-        plan = Plan(data.shape, stream = stream, wait_for_finish = True)
-
-    result = gpuarray.zeros_like(data)
-
-    plan.execute(data, data_out = result, inverse=inverse)
-    
-    return result
-
 def fftshift_color(img):
     fftshift = fftpack.fftshift
     if len(img.shape)!=3:
@@ -112,7 +89,7 @@ def fftshift_color(img):
     return img
 
 def create_image(r,i,j,k):
-    img = np.zeros((r.shape[0],r.shape[1],4))
+    img = nnp.zeros((r.shape[0],r.shape[1],4))
     img[:,:,0] = i
     img[:,:,1] = j
     img[:,:,2] = k
@@ -124,17 +101,17 @@ def pad(im):
     m,n = im.shape[:2]
     if len(im.shape) == 2:
         newim = np.zeros((m*2,n*2),dtype=im.dtype)
-        newim[m/2:m/2+m,n/2:n/2+n] = im
+        newim = newim.at[m//2:m//2+m,n//2:n//2+n].set(im)
     else:
         newim = np.zeros((m*2,n*2,im.shape[2]),dtype=im.dtype)
-        newim[m/2:m/2+m,n/2:n/2+n,:] = im
+        newim = newim.at[m//2:m//2+m,n//2:n//2+n,:].set(im)
     return newim
 
 def normalize(img):
     global gauss
     if len(img.shape)>2:
         for i in range(img.shape[2]):
-            img[img.shape[0]/2-12:img.shape[0]/2+12,img.shape[1]/2-12:img.shape[1]/2+12,i] *= gauss
+            img[img.shape[0]//2-12:img.shape[0]//2+12,img.shape[1]//2-12:img.shape[1]//2+12,i] *= gauss
         img[:,:,:3] -= img[:,:,:3].min()
         img[:,:,:3] /= img[:,:,:3].max()
         if img.shape[2] == 4:
@@ -197,12 +174,8 @@ def sqrt_normalize_gpu(img):
 def decompose_h(r,i,j,k):
     if not type(r)==np.ndarray:
         r=np.zeros(i.shape,dtype=np.float32)
-    ha = np.zeros(i.shape,dtype=np.complex64)
-    ha.real += r
-    ha.imag += i
-    hb = np.zeros(i.shape,dtype=np.complex64)
-    hb.real += j
-    hb.imag += k
+    ha = r + i * 1j
+    hb = j + k * 1j
     return ha,hb
 
 def decompose_h_gpu(r,i,j,k):
@@ -254,7 +227,7 @@ def recompose_lum_gpu(r,i,j,k):
     j = lum + cr1 + cr2
     i = lum - 2 * cr2
     k = lum + cr2 - cr1
-    return r.get(),i.get(),j.get(),k.get()
+    return r,i,j,k
 
 def qmult(r0,i0,j0,k0,r1,i1,j1,k1):
     r = np.multiply(r0,r1) - np.multiply(i0,i1) - np.multiply(j0,j1) - np.multiply(k0,k1)
@@ -272,8 +245,8 @@ def qmult_gpu(r0,i0,j0,k0,r1,i1,j1,k1):
 
 def QFT1(r,i,j,k,inv=0):
     ha,hb = decompose_h(r,i,j,k)
-    fha = fftpack.fft2(ha)
-    fhb = fftpack.fft2(hb[:,::-1])
+    fha = np.fft.fft2(ha)
+    fhb = np.fft.fft2(hb[:,::-1])
     if inv:
         fha /= fha.size
         fha = fha[::-1]
@@ -317,16 +290,16 @@ def SPQCV(fr,fi,fj,fk,hr,hi,hj,hk,mode=1):
 
 def QFT2(r,i,j,k,inv=0,lum=1):
     if lum:
-        ha,hb = decompose_lum_gpu(r,i,j,k)
+        ha,hb = decompose_lum(r,i,j,k)
     else:
-        ha,hb = decompose_h_gpu(r,i,j,k)
-    fha = gpu_fft(ha)
-    fhb = gpu_fft(hb)
+        ha,hb = decompose_h(r,i,j,k)
+    fha = np.fft.fftn(ha)
+    fhb = np.fft.fftn(hb)
     if inv:
         fha /= fha.size
-        fha = reverse_gpu(fha)
+        fha = fha[::-1].copy()
         fhb /= fhb.size
-        fhb = reverse_gpu(fhb)
+        fhb = fhb[::-1].copy()
     hr = fha.real
     hi = fha.imag
     hj = fhb.real
@@ -334,7 +307,7 @@ def QFT2(r,i,j,k,inv=0,lum=1):
     return hr,hi,hj,hk
 
 def QCV2(fr,fi,fj,fk,hr,hi,hj,hk,mode=None):
-    print 'ERROR : BROKEN FOR NOW'
+    #print 'ERROR : BROKEN FOR NOW'
     raise Exception
     r = cl_array.to_device(ctx,queue,r.astype(np.float32))
     i = cl_array.to_device(ctx,queue,i.astype(np.float32))
@@ -350,7 +323,7 @@ def QCV2(fr,fi,fj,fk,hr,hi,hj,hk,mode=None):
     return recompose_lum_gpu(r,i,j,k)
 
 def reverse_gpu(arr):
-    return gpuarray.to_gpu(arr.get()[::-1].copy())
+    return arr[::-1].copy()
 
 def ACV(im):
     im = gpuarray.to_gpu(im.astype(np.complex64))
@@ -360,27 +333,27 @@ def ACV(im):
 
 def AQCV2(r,i,j,k,mode=None):
     #t0=time.time()
-    if r == 0:
+    if isinstance(r, int) or isinstance(r, float) or r is None:
         r = np.zeros(i.shape)
-    r = gpuarray.to_gpu(r.astype(np.complex64))
-    i = gpuarray.to_gpu(i.astype(np.complex64))
-    j = gpuarray.to_gpu(j.astype(np.complex64))
-    k = gpuarray.to_gpu(k.astype(np.complex64))
-    fa,fb = decompose_lum_gpu(r,i,j,k)
+    r = r.astype(np.complex64)
+    i = i.astype(np.complex64)
+    j = j.astype(np.complex64)
+    k = k.astype(np.complex64)
+    fa,fb = decompose_lum(r,i,j,k)
     #print 'load and decompose',time.time()-t0
     #t0=time.time()
-    ffa = gpu_fft(fa)
-    ffb = gpu_fft(fb)
+    ffa = np.fft.fftn(fa)
+    ffb = np.fft.fftn(fb)
     #print 'first ffts',time.time()-t0
     #t0=time.time()
     ffar,ffai,ffaj,ffak = qmult_gpu(ffa.real,ffa.imag,0,0,ffa.real,ffa.imag,ffb.real,ffb.imag)
-    ffbr,ffbi,ffbj,ffbk = qmult_gpu(0,0,ffb.real,ffb.imag,reverse_gpu(ffa.real),reverse_gpu(ffa.imag),reverse_gpu(ffb.real),reverse_gpu(ffb.imag))
+    ffbr,ffbi,ffbj,ffbk = qmult_gpu(0,0,ffb.real,ffb.imag,ffa.real[::-1],ffa.imag[::-1],ffb.real[::-1],ffb.imag[::-1])
     #print 'qmult',time.time()-t0
     #t0=time.time()
     r,i,j,k = QFT2(ffar+ffbr,ffai+ffbi,ffaj+ffbj,ffak+ffbk,inv=1,lum=0)
     #print 'qft2',time.time()-t0
     #t0=time.time()
-    out = recompose_lum_gpu(r,i,j,k)
+    out = recompose_lum(r,i,j,k)
     #print 'recompose',time.time()-t0
     del r, i, j, k, fa, fb, ffa, ffb, ffar, ffai, ffaj, ffak, ffbr, ffbi, ffbj, ffbk
     return out
