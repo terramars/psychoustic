@@ -38,7 +38,7 @@ class Audio(AudioBase):
 
     def _pcm_bin2num(self, bins, channels, join=False):
         pcms = numpy.array(
-                struct.unpack('<'+'h'*(len(bins)/2), bins), 
+                struct.unpack('<'+'h'*(len(bins)//2), bins), 
                 float)
         pcms = pcms / self._max_pulse_value
         if channels <= 1:
@@ -48,7 +48,7 @@ class Audio(AudioBase):
         for i in range(channels):
             chs.append(
                 numpy.array(
-                    [pcms[i] for i in xrange(i, len(pcms), channels)]))
+                    [pcms[i] for i in range(i, len(pcms), channels)]))
         if not join:
             return chs
         return sum(chs) / channels

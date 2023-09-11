@@ -1,10 +1,12 @@
 #-*- coding: utf-8 -*-
 
-import os,sys
+import os
+import sys
 
 
 class DecoderError(RuntimeError):
     pass
+
 
 class DecoderNotFoundError(DecoderError):
     pass
@@ -20,11 +22,11 @@ for name in decoder_names:
     try:
         model = __import__('_dc_'+name)
         for fmt in model.support_formats:
-            arr = format2decoder_map.setdefault(fmt,[])
+            arr = format2decoder_map.setdefault(fmt, [])
             arr.append(model)
         name2decoder_map[name] = model
     except ImportError as ex:
-        print ex
+        print(ex)
 sys.path.pop(-1)
 
 
@@ -50,7 +52,6 @@ def get_decoder(format=None, name=None):
 
 
 def open(path):
-    name, fmt = path.rsplit('.',1)
+    name, fmt = path.rsplit('.', 1)
     dc = get_decoder(fmt)
     return dc.Audio(path)
-

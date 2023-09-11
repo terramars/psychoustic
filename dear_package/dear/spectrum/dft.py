@@ -1,12 +1,12 @@
 #-*- coding: utf-8 -*-
 
-from _base import *
+from dear.spectrum._base import *
 import numpy
 
 
 class Spectrum(SpectrumBase):
     '''Spectrum of Discrete Fourier Transform'''
-    
+
     @staticmethod
     def pre_calculate(win, win_shape, pre=True):
         var = {
@@ -15,8 +15,8 @@ class Spectrum(SpectrumBase):
         #
         if pre:
             arr = 2. * numpy.pi * numpy.arange(win) / win
-            PRE = numpy.array([var['W'] * (numpy.cos(arr*k) - numpy.sin(arr*k)*1j) \
-                    for k in xrange(win/2+1)])
+            PRE = numpy.array([var['W'] * (numpy.cos(arr*k) - numpy.sin(arr*k)*1j)
+                               for k in xrange(win/2+1)])
             var['PRE'] = PRE
         #
         return type('variables', (object,), var)
@@ -36,7 +36,7 @@ class Spectrum(SpectrumBase):
         return numpy.fft.rfft(pre_var.W * samples) / pre_var.WL
 
     def walk(self, win=1024, step=512, start=0, end=None, join_channels=True,
-            win_shape=numpy.hamming, mpre=False):
+             win_shape=numpy.hamming, mpre=False):
         var = Spectrum.pre_calculate(win, win_shape, mpre)
         self._var = var
         transform = mpre and Spectrum.transform_pre or Spectrum.transform
@@ -44,17 +44,18 @@ class Spectrum(SpectrumBase):
         for samples in self.audio.walk(win, step, start, end, join_channels):
             if join_channels:
                 yield transform(samples, pre_var=var)
-            else: yield [transform(ch, pre_var=var) for ch in samples]
+            else:
+                yield [transform(ch, pre_var=var) for ch in samples]
 
 
 class PowerSpectrum(Spectrum):
 
-    def __init__(self,*args,**kwargs):
+    def __init__(self, *args, **kwargs):
         if 'nfft' in kwargs:
             self.nfft = kwargs.pop('nfft')
         else:
             self.nfft = None
-        super(PowerSpectrum,self).__init__(*args,**kwargs)
+        super(PowerSpectrum, self).__init__(*args, **kwargs)
 
     @staticmethod
     def transform_pre(samples, win_shape=numpy.hamming, pre_var=None, nfft=None):
@@ -75,7 +76,7 @@ class PowerSpectrum(Spectrum):
         return (frame.real**2 + frame.imag**2) / pre_var.WL
 
     def walk(self, win=1024, step=512, start=0, end=None, join_channels=True,
-            win_shape=numpy.hamming, mpre=False):
+             win_shape=numpy.hamming, mpre=False):
         var = PowerSpectrum.pre_calculate(win, win_shape, mpre)
         self._var = var
         transform = mpre and PowerSpectrum.transform_pre or PowerSpectrum.transform
@@ -83,5 +84,5 @@ class PowerSpectrum(Spectrum):
         for samples in self.audio.walk(win, step, start, end, join_channels):
             if join_channels:
                 yield transform(samples, pre_var=var, nfft=self.nfft)
-            else: yield [transform(ch, pre_var=var, nfft=self.nfft) for ch in samples]
-
+            else:
+                yield [transform(ch, pre_var=var, nfft=self.nfft) for ch in samples]
